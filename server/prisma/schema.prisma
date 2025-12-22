@@ -1,0 +1,75 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role
+
+  tokenVersion Int      @default(0)
+  createdAt DateTime @default(now())
+
+  classes     Class[]        // Teacher can handle multiple classes
+  attendances Attendance[]
+}
+
+model Class {
+  id        String   @id @default(uuid())
+  name      String           // e.g. "10-A", "CSE-3"
+  subject   String           // e.g. "Maths", "DBMS"
+  teacherId String
+  createdAt DateTime @default(now())
+
+  teacher    User        @relation(fields: [teacherId], references: [id])
+  students   Student[]
+  attendance Attendance[]
+
+  @@unique([name, subject, teacherId])
+}
+
+model Student {
+  id        String   @id @default(uuid())
+  name      String
+  rollNo    String   @unique
+  classId   String
+  createdAt DateTime @default(now())
+
+  class        Class        @relation(fields: [classId], references: [id])
+  attendances Attendance[]
+}
+
+model Attendance {
+  id        String   @id @default(uuid())
+  studentId String
+  teacherId String
+  classId   String
+  date      DateTime
+  status    AttendanceStatus
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  student Student @relation(fields: [studentId], references: [id])
+  teacher User    @relation(fields: [teacherId], references: [id])
+  class   Class   @relation(fields: [classId], references: [id])
+
+  @@unique([studentId, classId, date])
+}
+
+enum Role {
+  ADMIN
+  TEACHER
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+}
