@@ -3,12 +3,50 @@ import { ApiResponse } from "../utils/apiResponse";
 import { ApiError } from "../utils/apiError";
 import { Request, Response } from "express";
 import prisma from "../db/db";
-import { hashPassword, comparePassword, generateToken, verifyToken } from "../services/auth.service";
+import { hashPassword, comparePassword, generateToken, verifyToken, generateRefreshToken } from "../services/auth.service";
 import { AuthRequest } from "../middlewares/auth.middleware";
+
+interface registerBody {
+    name: string;
+    email: string;
+    password: string;
+    role: "ADMIN" | "TEACHER";
+}
+
+const refreshAccessToken = asyncHandler(async (req: Request, res: Response) => {
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+      throw new ApiError(400, "Refresh token is required");
+    }
+
+    // find refresh token in DB
+    const storedToken = await prisma.refreshToken.findUnique({
+      where: { token: refreshToken }
+    });
+    if (!storedToken || storedToken.expiresAt < new Date()) {
+      throw new ApiError(401, "Invalid or expired refresh token");
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: storedToken.userId }
+    });
+    if (!user) {
+      throw new ApiError(404, "User not found");
+    }
+
+    const accessToken = generateToken({
+      id: user.id,
+      role: user.role,
+      tokenVersion: user.tokenVersion
+    });
+
+    return res.status(200).json(new ApiResponse(200,{ accessToken },"Access token refreshed successfully"));
+  }
+);
 
 // register 
 const register = asyncHandler(async (req: Request, res: Response) => {
-    const { name, email, password, role } = req.body
+    const { name, email, password, role } : registerBody = req.body
     if (!name || !email || !password) {
         throw new ApiError(400, "Name, email and password are required")
     }
@@ -58,11 +96,26 @@ const login = asyncHandler(async (req: Request, res: Response) => {
     if (!isPasswordValid) {
         throw new ApiError(401, "Invalid password");
     }
-    const token = generateToken({
+    const accessToken = generateToken({
         id: user.id,
         role: user.role,
         tokenVersion: user.tokenVersion,
     });
+
+    const refreshToken = generateRefreshToken();
+
+    await prisma.refreshToken.create({
+        data: {
+            token: refreshToken,
+            userId: user.id,
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+        }
+    });
+
+    const token = {
+        accessToken,
+        refreshToken
+    }
 
     res.status(200).json(new ApiResponse(200, { user, token }, "User logged in successfully"));
 });
@@ -78,9 +131,14 @@ const logout = asyncHandler(async (req: AuthRequest, res: Response) => {
             id: userId
         },
         data: {
-            tokenVersion: { increment: 1}
+            tokenVersion: { increment: 1 }
         }
     })
+
+    await prisma.refreshToken.deleteMany({
+        where: { userId }
+    });
+
     res.status(200).json(new ApiResponse(200, {}, "User logged out successfully"))
 })
 
@@ -189,7 +247,7 @@ const resetPassword = asyncHandler(async (req: Request, res: Response) => {
             }
         })
 
-        
+
         res.status(200).json(new ApiResponse(200, {}, "Password reset successfully"))
 
     } catch (error) {
@@ -203,5 +261,6 @@ export {
     logout,
     changePassword,
     forgotPassword,
-    resetPassword
+    resetPassword,
+    refreshAccessToken
 };

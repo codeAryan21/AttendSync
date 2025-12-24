@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import jwt, { SignOptions, JwtPayload } from "jsonwebtoken";
+import crypto from "crypto"
 
 const JWT_SECRET: jwt.Secret = process.env.JWT_SECRET!;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
@@ -41,4 +42,8 @@ export const verifyToken = (token: string): TokenPayload => {
 
 export const decodeToken = (token: string): JwtPayload | null => {
   return jwt.decode(token) as JwtPayload | null;
+};
+
+export const generateRefreshToken = () => {
+  return crypto.randomBytes(40).toString("hex");
 };

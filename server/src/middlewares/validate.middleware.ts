@@ -33,7 +33,8 @@ export const validate = (schemaName: ValidationSchema) => {
             schemas[schemaName].parse(req.body)
             next()
         } catch (error: any) {
-            return res.status(400).json({ message: error.errors[0].message })
+            const message = error?.errors?.[0]?.message || "Validation failed"
+            return res.status(400).json({ message })
         }
     }
 }

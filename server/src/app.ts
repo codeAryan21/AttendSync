@@ -2,10 +2,13 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-
-import authRouter from "./routes/auth.routes"
 import { authMiddleware } from "./middlewares/auth.middleware";
 import { errorHandler } from "./middlewares/errorHandler.middleware";
+
+
+import authRouter from "./routes/auth.routes"
+import classRouter from './routes/class.routes'
+import studentRouter from './routes/student.routes'
 
 const app = express();
 
@@ -24,7 +27,11 @@ app.get("/health", (_req, res) => {
 app.get("/api/protected", authMiddleware, (req, res) => {
   res.json({ message: "This is a protected route" });
 });
+
+
 app.use("/api/auth", authRouter);
+app.use("/api/class", classRouter);
+app.use("/api/student", studentRouter);
 
 
 app.use(errorHandler); // Middleware
