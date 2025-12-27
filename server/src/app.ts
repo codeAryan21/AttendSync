@@ -1,18 +1,21 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
-import rateLimit from "express-rate-limit";
 import { authMiddleware } from "./middlewares/auth.middleware";
 import { errorHandler } from "./middlewares/errorHandler.middleware";
+import { generalLimiter } from "./middlewares/rateLimit.middleware";
 
 
 import authRouter from "./routes/auth.routes"
 import classRouter from './routes/class.routes'
 import studentRouter from './routes/student.routes'
+import attendanceRouter from './routes/attendance.route'
+import attendanceAnalyticsRouter from './routes/attendance.analytics.route'
 
 const app = express();
 
 // Middleware
+app.use(generalLimiter);
 app.use(helmet());
 app.use(cors());
 app.use(express.json({ limit: '16mb' }));
@@ -32,6 +35,8 @@ app.get("/api/protected", authMiddleware, (req, res) => {
 app.use("/api/auth", authRouter);
 app.use("/api/class", classRouter);
 app.use("/api/student", studentRouter);
+app.use("/api/attendance", attendanceRouter);
+app.use("/api/attendance-analytics", attendanceAnalyticsRouter);
 
 
 app.use(errorHandler); // Middleware

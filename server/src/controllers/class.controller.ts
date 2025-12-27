@@ -9,7 +9,7 @@ import prisma from "../db/db";
 const createClass = asyncHandler(async (req: AuthRequest, res: Response) => {
     const { name, section, subject } = req.body;
     if (!name || !subject) {
-        throw new ApiError(400, "Name and subject are required");
+        throw new ApiError(400, "Name, section and subject are required");
     }
 
     const teacherId = req.user?.id;
