@@ -6,7 +6,7 @@ import prisma from "../db/db";
 export interface AuthRequest extends Request {
     user?: {
         id: string;
-        role: "ADMIN" | "TEACHER";
+        role: "ADMIN" | "TEACHER" | "STUDENT";
     };
 }
 

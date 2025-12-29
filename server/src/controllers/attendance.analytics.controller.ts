@@ -4,12 +4,13 @@ import { ApiError } from "../utils/apiError";
 import prisma from "../db/db";
 import { Request, Response } from "express";
 import { AuthRequest } from "../middlewares/auth.middleware";
+import { AttendanceStatus } from "@prisma/client";
 
 // Get attendance percentage for a student [ Attendance Percentage (Per Student) ]
 const getStudentAttendancePercentage = asyncHandler(async (req: AuthRequest, res: Response) => {
     const { studentId } = req.query;
     if (!studentId ) {
-        throw new ApiError(400, "StudentId and are required");
+        throw new ApiError(400, "StudentId is required");
     }
 
     const totalClasses = await prisma.attendance.count({
@@ -24,7 +25,7 @@ const getStudentAttendancePercentage = asyncHandler(async (req: AuthRequest, res
     const presentCount = await prisma.attendance.count({
         where: {
             studentId: studentId as string,
-            status: "PRESENT"
+            status: AttendanceStatus.PRESENT
         }
     })
 
@@ -93,7 +94,7 @@ const getMonthlyClassAttendanceSummary = asyncHandler(async (req: AuthRequest, r
       };
     }
 
-    if (record.status === "PRESENT") acc[studentId].present++;
+    if (record.status === AttendanceStatus.PRESENT) acc[studentId].present++;
     else acc[studentId].absent++;
 
     return acc;

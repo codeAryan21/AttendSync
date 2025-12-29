@@ -5,16 +5,40 @@ import { Request, Response } from "express";
 import prisma from "../db/db";
 import { hashPassword, comparePassword, generateToken, verifyToken, generateRefreshToken } from "../services/auth.service";
 import { AuthRequest } from "../middlewares/auth.middleware";
+import { Role } from "@prisma/client";
 
 interface registerBody {
     name: string;
     email: string;
     password: string;
-    role: "ADMIN" | "TEACHER";
+    role: Role;
+}
+
+interface loginBody {
+    email: string;
+    password: string;
+}
+
+interface changePasswordBody {
+    oldPassword: string;
+    newPassword: string;
+}
+
+interface forgotPasswordBody {
+    email: string;
+}
+
+interface resetPasswordBody {
+    token: string;
+    newPassword: string;
+}
+
+interface refreshTokenBody {
+    refreshToken: string;
 }
 
 const refreshAccessToken = asyncHandler(async (req: Request, res: Response) => {
-    const { refreshToken } = req.body;
+    const { refreshToken }: refreshTokenBody = req.body;
     if (!refreshToken) {
       throw new ApiError(400, "Refresh token is required");
     }
@@ -61,8 +85,8 @@ const register = asyncHandler(async (req: Request, res: Response) => {
     if (password.length < 8) {
         throw new ApiError(400, "Password must be at least 8 characters long")
     }
-    if (role !== "ADMIN" && role !== "TEACHER") {
-        throw new ApiError(400, "Role must be either ADMIN or TEACHER")
+    if (role !== "ADMIN" && role !== "TEACHER" && role !== "STUDENT") {
+        throw new ApiError(400, "Role must be ADMIN, TEACHER, or STUDENT")
     }
 
     const hashedPassword = await hashPassword(password)
@@ -79,7 +103,7 @@ const register = asyncHandler(async (req: Request, res: Response) => {
 
 // login
 const login = asyncHandler(async (req: Request, res: Response) => {
-    const { email, password } = req.body;
+    const { email, password }: loginBody = req.body;
     if (!email || !password) {
         throw new ApiError(400, "Email and password are required");
     }
@@ -144,7 +168,7 @@ const logout = asyncHandler(async (req: AuthRequest, res: Response) => {
 
 // change-Password
 const changePassword = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { oldPassword, newPassword } = req.body;
+    const { oldPassword, newPassword }: changePasswordBody = req.body;
     if (!oldPassword || !newPassword) {
         throw new ApiError(400, "Old password and new password are required");
     }
@@ -186,7 +210,7 @@ const changePassword = asyncHandler(async (req: AuthRequest, res: Response) => {
 
 // forgot-password
 const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
-    const { email } = req.body;
+    const { email }: forgotPasswordBody = req.body;
     if (!email) {
         throw new ApiError(400, "Email is required");
     }
@@ -214,7 +238,7 @@ const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
 
 // reset-password
 const resetPassword = asyncHandler(async (req: Request, res: Response) => {
-    const { token, newPassword } = req.body;
+    const { token, newPassword }: resetPasswordBody = req.body;
     if (!token || !newPassword) {
         throw new ApiError(400, "Token and new password are required");
     }
@@ -255,6 +279,33 @@ const resetPassword = asyncHandler(async (req: Request, res: Response) => {
     }
 })
 
+// get current user
+const getCurrentUser = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = req.user?.id;
+    if (!userId) {
+        throw new ApiError(400, "User not found");
+    }
+    
+    const user = await prisma.user.findUnique({
+        where: {
+            id: userId
+        },
+        select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            createdAt: true
+        }
+    });
+    
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+    
+    res.status(200).json(new ApiResponse(200, user, "User fetched successfully"));
+});
+
 export {
     register,
     login,
@@ -262,5 +313,6 @@ export {
     changePassword,
     forgotPassword,
     resetPassword,
-    refreshAccessToken
+    refreshAccessToken,
+    getCurrentUser
 };

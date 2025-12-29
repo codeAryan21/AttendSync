@@ -1,5 +1,6 @@
 import { Router } from "express"
 import { authMiddleware } from "../middlewares/auth.middleware";
+import { requireTeacher } from "../middlewares/role.middleware";
 import { 
     markAttendance, 
     toggleAttendance,
@@ -9,16 +10,16 @@ import {
 
 const router = Router();
 
-// Mark attendance
-router.post("/", authMiddleware, markAttendance);
+// Mark attendance (Teachers only)
+router.post("/", authMiddleware, requireTeacher, markAttendance);
 
-// Toggle attendance
-router.put("/toggle", authMiddleware, toggleAttendance);
+// Toggle attendance (Teachers only)
+router.put("/toggle", authMiddleware, requireTeacher, toggleAttendance);
 
-// Get attendance by class & date
-router.get("/", authMiddleware, getAttendanceByClassAndDate);
+// Get attendance by class & date (Teachers and Admin)
+router.get("/", authMiddleware, requireTeacher, getAttendanceByClassAndDate);
 
-// Offline bulk sync attendance
-router.post("/bulk-sync", authMiddleware, bulkSyncAttendance);
+// Offline bulk sync attendance (Teachers only)
+router.post("/bulk-sync", authMiddleware, requireTeacher, bulkSyncAttendance);
 
 export default router;

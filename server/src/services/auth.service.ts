@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import jwt, { SignOptions, JwtPayload } from "jsonwebtoken";
 import crypto from "crypto"
+import { Role } from "@prisma/client";
 
 const JWT_SECRET: jwt.Secret = process.env.JWT_SECRET!;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
@@ -11,7 +12,7 @@ if (!JWT_SECRET) {
 
 export interface TokenPayload {
   id: string;
-  role: "ADMIN" | "TEACHER";
+  role: Role;
   tokenVersion: number;
 }
 

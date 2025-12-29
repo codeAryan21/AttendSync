@@ -4,21 +4,34 @@ import { ApiError } from "../utils/apiError";
 import { Request, Response } from "express";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import prisma from "../db/db";
+import { Role } from "@prisma/client";
+
+interface addStudentBody {
+    name: string;
+    rollNo: string;
+    classId: string;
+}
+
+interface updateStudentBody {
+    name: string;
+    rollNo: string;
+}
 
 // add student
 const addStudent = asyncHandler(async (req: Request, res: Response) => {
-    const { name, rollNo, classId } = req.body;
+    const { name, rollNo, classId }: addStudentBody = req.body;
     if (!name || !rollNo || !classId) {
         throw new ApiError(400, "Name, rollNo and classId are required");
     }
 
     const studentExists = await prisma.student.findFirst({
         where: {
-            rollNo
+            rollNo,
+            classId
         }
     });
     if (studentExists) {
-        throw new ApiError(400, "Student already exists");
+        throw new ApiError(400, "Student with this roll number already exists in this class");
     }
 
     const newStudent = await prisma.student.create({
@@ -46,8 +59,10 @@ const getStudents = asyncHandler(async (req: AuthRequest, res: Response) => {
     if (!classExists) {
         throw new ApiError(400, "Class does not exist");
     }
-    if (classExists.teacherId !== req.user?.id) {
-        throw new ApiError(400, "You are not authorized to view this class");
+    
+    // Allow admin to view any class, teachers only their own
+    if (req.user?.role === Role.TEACHER && classExists.teacherId !== req.user?.id) {
+        throw new ApiError(403, "You are not authorized to view this class");
     }
 
     const students = await prisma.student.findMany({
@@ -60,7 +75,7 @@ const getStudents = asyncHandler(async (req: AuthRequest, res: Response) => {
 
 // update student
 const updateStudent = asyncHandler(async (req: Request, res: Response) => {
-    const { name, rollNo } = req.body;
+    const { name, rollNo }: updateStudentBody = req.body;
     const { id } = req.params;
     if (!name || !rollNo) {
         throw new ApiError(400, "Name and rollNo is required");

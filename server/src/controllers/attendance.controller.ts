@@ -6,9 +6,31 @@ import { AuthRequest } from "../middlewares/auth.middleware";
 import prisma from "../db/db";
 import { AttendanceStatus } from "@prisma/client";
 
+interface markAttendanceBody {
+    studentId: string;
+    classId: string;
+    date: string;
+    status: AttendanceStatus;
+}
+
+interface toggleAttendanceBody {
+    studentId: string;
+    classId: string;
+    date: string;
+}
+
+interface bulkSyncBody {
+    records: {
+        studentId: string;
+        classId: string;
+        date: string;
+        status: AttendanceStatus;
+    }[];
+}
+
 // mark attendance
 const markAttendance = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { studentId, classId, date, status } = req.body;
+    const { studentId, classId, date, status }: markAttendanceBody = req.body;
     const teacherId = req.user!.id;
     if (!studentId || !classId || !date || !status) {
         throw new ApiError(400, "Student ID, class ID, date and status are required");
@@ -59,7 +81,7 @@ const markAttendance = asyncHandler(async (req: AuthRequest, res: Response) => {
 
 // toggle attendance
 const toggleAttendance = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { studentId, classId, date } = req.body;
+    const { studentId, classId, date }: toggleAttendanceBody = req.body;
     const teacherId = req.user!.id;
     if (!studentId || !classId || !date) {
         throw new ApiError(400, "Student ID, class ID, and date are required");
@@ -147,7 +169,7 @@ const getAttendanceByClassAndDate = asyncHandler(async (req: AuthRequest, res: R
 
 // offline bulk Sync attendance
 const bulkSyncAttendance = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const records = req.body.records;
+    const { records }: bulkSyncBody = req.body;
     const teacherId = req.user!.id;
     if (!records || !Array.isArray(records) || records.length === 0) {
         throw new ApiError(400, "Attendance records are required");

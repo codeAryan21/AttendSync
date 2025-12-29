@@ -51,12 +51,14 @@ model Class {
 model Student {
   id        String   @id @default(uuid())
   name      String
-  rollNo    String   @unique
+  rollNo    String
   classId   String
   createdAt DateTime @default(now())
 
   class       Class        @relation(fields: [classId], references: [id])
   attendances Attendance[]
+
+  @@unique([rollNo, classId])
 }
 
 model Attendance {
@@ -79,6 +81,7 @@ model Attendance {
 enum Role {
   ADMIN
   TEACHER
+  STUDENT
 }
 
 enum AttendanceStatus {
