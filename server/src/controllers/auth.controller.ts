@@ -12,6 +12,13 @@ interface registerBody {
     email: string;
     password: string;
     role: Role;
+    phone?: string;
+    address?: string;
+    // Student specific fields
+    rollNo?: string;
+    classId?: string;
+    parentName?: string;
+    parentPhone?: string;
 }
 
 interface loginBody {
@@ -70,35 +77,86 @@ const refreshAccessToken = asyncHandler(async (req: Request, res: Response) => {
 
 // register 
 const register = asyncHandler(async (req: Request, res: Response) => {
-    const { name, email, password, role } : registerBody = req.body
+    const { name, email, password, role, phone, address, rollNo, classId, parentName, parentPhone } : registerBody = req.body
+    
     if (!name || !email || !password) {
         throw new ApiError(400, "Name, email and password are required")
     }
+    
     const existingUser = await prisma.user.findUnique({
-        where: {
-            email
-        }
+        where: { email }
     })
     if (existingUser) {
         throw new ApiError(400, "User already exists")
     }
+    
     if (password.length < 8) {
         throw new ApiError(400, "Password must be at least 8 characters long")
     }
+    
     if (role !== "ADMIN" && role !== "TEACHER" && role !== "STUDENT") {
         throw new ApiError(400, "Role must be ADMIN, TEACHER, or STUDENT")
     }
 
-    const hashedPassword = await hashPassword(password)
-    const user = await prisma.user.create({
-        data: {
-            name,
-            email,
-            password: hashedPassword,
-            role
+    // Validate student-specific requirements
+    if (role === "STUDENT") {
+        if (!rollNo || !classId) {
+            throw new ApiError(400, "Roll number and class ID are required for students")
         }
+        
+        // Check if class exists
+        const classExists = await prisma.class.findUnique({
+            where: { id: classId }
+        })
+        if (!classExists) {
+            throw new ApiError(400, "Invalid class ID")
+        }
+        
+        // Check if roll number is unique in the class
+        const existingStudent = await prisma.student.findFirst({
+            where: {
+                rollNo,
+                classId
+            }
+        })
+        if (existingStudent) {
+            throw new ApiError(400, "Roll number already exists in this class")
+        }
+    }
+
+    const hashedPassword = await hashPassword(password)
+    
+    // Create user and student profile in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+        const user = await tx.user.create({
+            data: {
+                name,
+                email,
+                password: hashedPassword,
+                role,
+                phone,
+                address
+            }
+        })
+        
+        // Create student profile if role is STUDENT
+        if (role === "STUDENT" && rollNo && classId) {
+            await tx.student.create({
+                data: {
+                    id: user.id,
+                    rollNo,
+                    classId,
+                    parentName,
+                    parentPhone
+                }
+            })
+        }
+        
+        return user
     })
-    res.status(201).json(new ApiResponse(201, user, "User registered successfully"))
+    
+    const { password: _, ...userWithoutPassword } = result
+    res.status(201).json(new ApiResponse(201, userWithoutPassword, "User registered successfully"))
 });
 
 // login
@@ -279,7 +337,7 @@ const resetPassword = asyncHandler(async (req: Request, res: Response) => {
     }
 })
 
-// get current user
+// get current user with profile
 const getCurrentUser = asyncHandler(async (req: AuthRequest, res: Response) => {
     const userId = req.user?.id;
     if (!userId) {
@@ -287,15 +345,45 @@ const getCurrentUser = asyncHandler(async (req: AuthRequest, res: Response) => {
     }
     
     const user = await prisma.user.findUnique({
-        where: {
-            id: userId
-        },
+        where: { id: userId },
         select: {
             id: true,
             name: true,
             email: true,
             role: true,
-            createdAt: true
+            phone: true,
+            address: true,
+            employeeId: true,
+            // Teacher profile fields
+            designation: true,
+            qualification: true,
+            experience: true,
+            specialization: true,
+            isActive: true,
+            createdAt: true,
+            studentProfile: {
+                select: {
+                    id: true,
+                    rollNo: true,
+                    parentName: true,
+                    parentPhone: true,
+                    admissionDate: true,
+                    class: {
+                        select: {
+                            id: true,
+                            name: true,
+                            section: true,
+                            subjects: true,
+                            teacher: {
+                                select: {
+                                    name: true,
+                                    email: true
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     });
     

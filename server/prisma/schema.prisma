@@ -8,17 +8,34 @@ datasource db {
 }
 
 model User {
-  id       String @id @default(uuid())
-  name     String
-  email    String @unique
-  password String
-  role     Role
+  id         String @id @default(uuid())
+  name       String
+  email      String @unique
+  password   String
+  role       Role
+  phone      String?
+  address    String?
+  employeeId String?
+  
+  // Teacher profile fields
+  designation    String?
+  qualification  String?
+  experience     Int?
+  specialization String?
+  
+  isActive   Boolean  @default(true)
 
   tokenVersion Int      @default(0)
   createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
 
+  // Teacher relations
   classes       Class[] // Teacher can handle multiple classes
   attendances   Attendance[]
+  
+  // Student relations (when role is STUDENT)
+  studentProfile Student?
+  
   refreshTokens RefreshToken[]
 }
 
@@ -34,27 +51,40 @@ model RefreshToken {
 }
 
 model Class {
-  id        String   @id @default(uuid())
-  name      String 
-  section   String?
-  subject   String 
-  teacherId String
-  createdAt DateTime @default(now())
+  id           String   @id @default(uuid())
+  name         String 
+  course       String
+  subjects     String[] // Array of subjects
+  academicYear String
+  section      String?
+  teacherId    String?
+  description  String?
+  schedule     String? // e.g., "Mon,Wed,Fri 10:00-11:00"
+  metadata     Json?    // Store subject-teacher assignments and other metadata
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
 
-  teacher    User         @relation(fields: [teacherId], references: [id])
+  teacher    User?        @relation(fields: [teacherId], references: [id])
   students   Student[]
   attendance Attendance[]
 
-  @@unique([name, subject, teacherId])
+  @@unique([name, course, academicYear, section])
 }
 
 model Student {
   id        String   @id @default(uuid())
-  name      String
-  rollNo    String
+  userId    String?  @unique // Link to User table 
+  rollNo    String   
   classId   String
+  parentName String?
+  parentPhone String?
+  admissionDate DateTime @default(now())
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
+  user        User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
   class       Class        @relation(fields: [classId], references: [id])
   attendances Attendance[]
 
@@ -76,6 +106,25 @@ model Attendance {
   class   Class   @relation(fields: [classId], references: [id])
 
   @@unique([studentId, classId, date])
+}
+
+model Settings {
+  id                   String  @id @default(uuid())
+  instituteName        String  @default("AttendSync Institute")
+  instituteAddress     String  @default("")
+  institutePhone       String  @default("")
+  instituteEmail       String  @default("")
+  instituteWebsite     String  @default("")
+  attendanceThreshold  Int     @default(75)
+  autoMarkAbsent       Boolean @default(false)
+  emailNotifications   Boolean @default(true)
+  smsNotifications     Boolean @default(false)
+  backupEnabled        Boolean @default(true)
+  maintenanceMode      Boolean @default(false)
+  sessionTimeout       Int     @default(30)
+  maxLoginAttempts     Int     @default(5)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 }
 
 enum Role {

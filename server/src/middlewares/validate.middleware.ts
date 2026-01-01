@@ -17,7 +17,8 @@ const registerSchema = z.object({
 
 const loginSchema = z.object({
     email: z.string().trim().email("Invalid email address"),
-    password: passwordSchema
+    password: z.string().min(1, "Password is required"),
+    loginType: z.enum(["staff", "student"]).optional()
 })
 
 type ValidationSchema = "register" | "login"

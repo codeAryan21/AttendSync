@@ -1,18 +1,19 @@
 import { Router } from "express"
 import {
-    addStudent,
-    getStudents,
-    updateStudent,
-    deleteStudent
+    getStudentsByClass,
+    getStudentProfile,
+    getStudentAttendance
 } from "../controllers/student.controller"
 import { authMiddleware } from "../middlewares/auth.middleware";
-import { requireTeacher } from "../middlewares/role.middleware";
+import { requireTeacher, requireStudent } from "../middlewares/role.middleware";
 
 const router = Router();
 
-router.post("/", authMiddleware, requireTeacher, addStudent);
-router.get("/:classId", authMiddleware, requireTeacher, getStudents);
-router.put("/:id", authMiddleware, requireTeacher, updateStudent);
-router.delete("/:id", authMiddleware, requireTeacher, deleteStudent);
+// Routes for teachers and admin to manage students
+router.get("/class/:classId", authMiddleware, requireTeacher, getStudentsByClass);
+
+// Routes for students to manage their own profile
+router.get("/profile", authMiddleware, requireStudent, getStudentProfile);
+router.get("/attendance", authMiddleware, requireStudent, getStudentAttendance);
 
 export default router;

@@ -12,6 +12,7 @@ import studentRouter from './routes/student.routes'
 import attendanceRouter from './routes/attendance.route'
 import attendanceAnalyticsRouter from './routes/attendance.analytics.route'
 import adminRouter from './routes/admin.routes'
+import teacherRouter from './routes/teacher.routes'
 
 const app = express();
 
@@ -19,7 +20,10 @@ const app = express();
 const corsOptions = {
   origin: ['http://localhost:3000', 'http://localhost:3001'],
   credentials: true,
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 200,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  preflightContinue: false
 }
 
 // Middleware
@@ -44,6 +48,7 @@ app.use("/api/auth", authRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/class", classRouter);
 app.use("/api/student", studentRouter);
+app.use("/api/teacher", teacherRouter);
 app.use("/api/attendance", attendanceRouter);
 app.use("/api/attendance-analytics", attendanceAnalyticsRouter);
 

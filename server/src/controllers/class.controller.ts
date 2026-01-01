@@ -8,47 +8,129 @@ import { Role } from "@prisma/client";
 
 interface createClassBody {
     name: string;
-    section?: string;
-    subject: string;
+    course: string;
+    subjects: string[];
+    academicYear: string;
+    section: string;
+    schedule?: string;
+    description?: string;
+    teacherId?: string;
+    subjectTeachers?: Array<{
+        subject: string;
+        teacherId: string;
+    }>;
 }
 
 interface updateClassBody {
     name: string;
-    section?: string;
-    subject: string;
+    course: string;
+    subjects: string[];
+    academicYear: string;
+    section: string;
+    schedule?: string;
+    description?: string;
+    teacherId?: string;
+    subjectTeachers?: Array<{
+        subject: string;
+        teacherId: string;
+    }>;
 }
 
 // create class
 const createClass = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { name, section, subject }: createClassBody = req.body;
-    if (!name || !subject) {
-        throw new ApiError(400, "Name, section and subject are required");
+    const { name, course, subjects, academicYear, section, schedule, description, teacherId, subjectTeachers }: createClassBody = req.body;
+    
+    // Enhanced validation
+    if (!name?.trim()) throw new ApiError(400, "Class name is required");
+    if (!course?.trim()) throw new ApiError(400, "Course is required");
+    if (!subjects || !Array.isArray(subjects) || subjects.length === 0) {
+        throw new ApiError(400, "At least one subject is required");
+    }
+    if (!academicYear?.trim()) throw new ApiError(400, "Academic year is required");
+    if (!section?.trim()) throw new ApiError(400, "Section is required");
+
+    if (req.user?.role !== Role.ADMIN) {
+        throw new ApiError(403, "Only admins can create classes");
     }
 
-    const teacherId = req.user?.id;
-    if (!teacherId) {
-        throw new ApiError(401, "Unauthorized");
+    const validSubjects = subjects.filter(s => s?.trim());
+    if (validSubjects.length === 0) {
+        throw new ApiError(400, "All subjects must have valid names");
+    }
+
+    // Validate subject-teacher assignments
+    if (subjectTeachers && Array.isArray(subjectTeachers)) {
+        for (const assignment of subjectTeachers) {
+            if (assignment.subject?.trim() && assignment.teacherId?.trim()) {
+                const teacher = await prisma.user.findUnique({
+                    where: { id: assignment.teacherId, role: Role.TEACHER }
+                });
+                if (!teacher) {
+                    throw new ApiError(400, `Teacher not found for subject: ${assignment.subject}`);
+                }
+            }
+        }
+    }
+
+    if (teacherId?.trim()) {
+        const teacher = await prisma.user.findUnique({
+            where: { id: teacherId, role: Role.TEACHER }
+        });
+        if (!teacher) {
+            throw new ApiError(404, "Main teacher not found");
+        }
     }
 
     const classExists = await prisma.class.findFirst({
         where: {
-            name,
-            subject,
-            teacherId
+            name: name.trim(),
+            course: course.trim(),
+            academicYear: academicYear.trim(),
+            section: section.trim()
         }
     });
     if (classExists) {
-        throw new ApiError(400, "Class already exists");
+        throw new ApiError(400, "Class with same name, course, academic year and section already exists");
+    }
+
+    const createData: any = {
+        name: name.trim(),
+        course: course.trim(),
+        subjects: validSubjects,
+        academicYear: academicYear.trim(),
+        section: section.trim(),
+        schedule: schedule?.trim() || null,
+        description: description?.trim() || null
+    };
+    
+    if (teacherId?.trim()) {
+        createData.teacherId = teacherId;
+    }
+
+    // Store subject teachers in metadata
+    if (subjectTeachers && Array.isArray(subjectTeachers) && subjectTeachers.length > 0) {
+        const validAssignments = subjectTeachers.filter(st => st.subject?.trim() && st.teacherId?.trim());
+        if (validAssignments.length > 0) {
+            createData.metadata = { subjectTeachers: validAssignments };
+        }
     }
 
     const newClass = await prisma.class.create({
-        data: {
-            name,
-            section,
-            subject,
-            teacherId
+        data: createData,
+        include: {
+            teacher: {
+                select: {
+                    id: true,
+                    name: true,
+                    email: true
+                }
+            },
+            _count: {
+                select: { students: true }
+            }
         }
     });
+    
     res.status(201).json(new ApiResponse(201, newClass, "Class created successfully"));
 })
 
@@ -65,7 +147,13 @@ const getAllClasses = asyncHandler(async (req: AuthRequest, res: Response) => {
     const classes = await prisma.class.findMany({
         where: whereClause,
         include: { 
-            students: true,
+            teacher: {
+                select: {
+                    id: true,
+                    name: true,
+                    email: true
+                }
+            },
             _count: {
                 select: { students: true }
             }
@@ -77,11 +165,11 @@ const getAllClasses = asyncHandler(async (req: AuthRequest, res: Response) => {
 // update class
 const updateClass = asyncHandler(async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
-    const { name, section, subject }: updateClassBody = req.body;
-    const teacherId = req.user?.id;
+    const { name, course, subjects, academicYear, section, schedule, description, teacherId: newTeacherId, subjectTeachers }: updateClassBody = req.body;
+    const currentUserId = req.user?.id;
     
-    if (!name || !subject) {
-        throw new ApiError(400, "Name and subject are required");
+    if (!name || !course || !subjects || !academicYear || !section) {
+        throw new ApiError(400, "Name, course, subjects, academic year and section are required");
     }
     
     const existingClass = await prisma.class.findUnique({
@@ -92,13 +180,39 @@ const updateClass = asyncHandler(async (req: AuthRequest, res: Response) => {
         throw new ApiError(404, "Class not found");
     }
     
-    if (existingClass.teacherId !== teacherId && req.user?.role !== Role.ADMIN) {
+    if (existingClass.teacherId !== currentUserId && req.user?.role !== Role.ADMIN) {
         throw new ApiError(403, "Not authorized to update this class");
+    }
+    
+    const updateData: any = { 
+        name,
+        course,
+        subjects,
+        academicYear,
+        section,
+        schedule,
+        description,
+        ...(newTeacherId !== undefined && { teacherId: newTeacherId })
+    };
+    
+    // Update subject teachers in metadata
+    if (subjectTeachers && Array.isArray(subjectTeachers)) {
+        const validAssignments = subjectTeachers.filter(st => st.subject?.trim() && st.teacherId?.trim());
+        updateData.metadata = validAssignments.length > 0 ? { subjectTeachers: validAssignments } : null;
     }
     
     const updatedClass = await prisma.class.update({
         where: { id },
-        data: { name, section, subject }
+        data: updateData,
+        include: {
+            teacher: {
+                select: {
+                    id: true,
+                    name: true,
+                    email: true
+                }
+            }
+        }
     });
     
     res.status(200).json(new ApiResponse(200, updatedClass, "Class updated successfully"));
@@ -107,18 +221,26 @@ const updateClass = asyncHandler(async (req: AuthRequest, res: Response) => {
 // delete class
 const deleteClass = asyncHandler(async (req: AuthRequest, res: Response) => {
     const { id } = req.params;
-    const teacherId = req.user?.id;
     
     const existingClass = await prisma.class.findUnique({
-        where: { id }
+        where: { id },
+        include: {
+            students: true,
+            attendance: true
+        }
     });
     
     if (!existingClass) {
         throw new ApiError(404, "Class not found");
     }
     
-    if (existingClass.teacherId !== teacherId && req.user?.role !== Role.ADMIN) {
-        throw new ApiError(403, "Not authorized to delete this class");
+    // Check if class has students or attendance records
+    if (existingClass.students.length > 0) {
+        throw new ApiError(400, "Cannot delete class with enrolled students. Please reassign students first.");
+    }
+    
+    if (existingClass.attendance.length > 0) {
+        throw new ApiError(400, "Cannot delete class with attendance records.");
     }
     
     await prisma.class.delete({

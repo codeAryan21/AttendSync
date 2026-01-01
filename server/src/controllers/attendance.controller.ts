@@ -212,9 +212,92 @@ const bulkSyncAttendance = asyncHandler(async (req: AuthRequest, res: Response) 
     res.status(201).json(new ApiResponse(201, syncedCount, "Attendance synced successfully"));
 });
 
+// get attendance by class ID (for admin)
+const getAttendanceByClass = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { classId } = req.params;
+    if (!classId) {
+        throw new ApiError(400, "Class ID is required");
+    }
+
+    const classData = await prisma.class.findUnique({
+        where: { id: classId },
+        include: {
+            teacher: {
+                select: {
+                    name: true
+                }
+            },
+            students: {
+                select: {
+                    id: true,
+                    rollNo: true,
+                    user: {
+                        select: {
+                            name: true
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    if (!classData) {
+        throw new ApiError(404, "Class not found");
+    }
+
+    const attendance = await prisma.attendance.findMany({
+        where: {
+            classId
+        },
+        include: {
+            student: {
+                select: {
+                    id: true,
+                    rollNo: true,
+                    user: {
+                        select: {
+                            name: true
+                        }
+                    }
+                }
+            }
+        },
+        orderBy: {
+            date: 'desc'
+        }
+    });
+
+    const totalStudents = classData.students.length;
+    const totalClasses = await prisma.attendance.groupBy({
+        by: ['date'],
+        where: { classId }
+    }).then(dates => dates.length);
+
+    const presentCount = attendance.filter(a => a.status === 'PRESENT').length;
+    const averageAttendance = totalClasses > 0 ? Math.round((presentCount / (totalStudents * totalClasses)) * 100) : 0;
+
+    const result = {
+        class: {
+            id: classData.id,
+            name: classData.name,
+            section: classData.section,
+            teacher: classData.teacher
+        },
+        attendance,
+        stats: {
+            totalStudents,
+            totalClasses,
+            averageAttendance
+        }
+    };
+
+    res.status(200).json(new ApiResponse(200, result, "Class attendance fetched successfully"));
+});
+
 export {
     markAttendance,
     toggleAttendance,
     getAttendanceByClassAndDate,
+    getAttendanceByClass,
     bulkSyncAttendance
 };

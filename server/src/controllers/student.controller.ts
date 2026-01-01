@@ -6,55 +6,18 @@ import { AuthRequest } from "../middlewares/auth.middleware";
 import prisma from "../db/db";
 import { Role } from "@prisma/client";
 
-interface addStudentBody {
-    name: string;
-    rollNo: string;
-    classId: string;
-}
-
-interface updateStudentBody {
-    name: string;
-    rollNo: string;
-}
-
-// add student
-const addStudent = asyncHandler(async (req: Request, res: Response) => {
-    const { name, rollNo, classId }: addStudentBody = req.body;
-    if (!name || !rollNo || !classId) {
-        throw new ApiError(400, "Name, rollNo and classId are required");
-    }
-
-    const studentExists = await prisma.student.findFirst({
-        where: {
-            rollNo,
-            classId
-        }
-    });
-    if (studentExists) {
-        throw new ApiError(400, "Student with this roll number already exists in this class");
-    }
-
-    const newStudent = await prisma.student.create({
-        data: {
-            name,
-            rollNo,
-            classId
-        }
-    });
-    res.status(201).json(new ApiResponse(201, newStudent, "Student added successfully"));
-})
-
-// get student by class
-const getStudents = asyncHandler(async (req: AuthRequest, res: Response) => {
+// Get students by class (for teachers and admin)
+const getStudentsByClass = asyncHandler(async (req: AuthRequest, res: Response) => {
     const { classId } = req.params;
+    const { page = 1, limit = 10, search } = req.query;
+    const skip = (Number(page) - 1) * Number(limit);
+    
     if (!classId) {
         throw new ApiError(400, "ClassId is required");
     }
 
     const classExists = await prisma.class.findFirst({
-        where: {
-            id: classId as string
-        }
+        where: { id: classId as string }
     });
     if (!classExists) {
         throw new ApiError(400, "Class does not exist");
@@ -65,70 +28,175 @@ const getStudents = asyncHandler(async (req: AuthRequest, res: Response) => {
         throw new ApiError(403, "You are not authorized to view this class");
     }
 
-    const students = await prisma.student.findMany({
-        where: {
-            classId: classId as string
-        }
-    });
-    res.status(200).json(new ApiResponse(200, students, "Students fetched successfully"));
-})
-
-// update student
-const updateStudent = asyncHandler(async (req: Request, res: Response) => {
-    const { name, rollNo }: updateStudentBody = req.body;
-    const { id } = req.params;
-    if (!name || !rollNo) {
-        throw new ApiError(400, "Name and rollNo is required");
+    const where: any = { classId: classId as string, isActive: true };
+    if (search) {
+        where.user = {
+            name: { contains: search as string, mode: 'insensitive' }
+        };
     }
 
-    const studentExists = await prisma.student.findFirst({
-        where: {
-            id
+    const [students, total] = await Promise.all([
+        prisma.student.findMany({
+            where,
+            skip,
+            take: Number(limit),
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                        phone: true,
+                        isActive: true
+                    }
+                },
+                class: {
+                    select: {
+                        name: true,
+                        section: true,
+                        subjects: true
+                    }
+                }
+            },
+            orderBy: { rollNo: 'asc' }
+        }),
+        prisma.student.count({ where })
+    ]);
+    
+    res.status(200).json(new ApiResponse(200, {
+        students,
+        pagination: {
+            page: Number(page),
+            limit: Number(limit),
+            total,
+            pages: Math.ceil(total / Number(limit))
+        }
+    }, "Students fetched successfully"));
+});
+
+// Get student profile (for students to view their own profile)
+const getStudentProfile = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = req.user?.id;
+    
+    if (req.user?.role !== Role.STUDENT) {
+        throw new ApiError(403, "Only students can access this endpoint");
+    }
+    
+    const student = await prisma.student.findUnique({
+        where: { userId },
+        include: {
+            user: {
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    phone: true,
+                    address: true
+                }
+            },
+            class: {
+                select: {
+                    id: true,
+                    name: true,
+                    section: true,
+                    subjects: true,
+                    schedule: true,
+                    teacher: {
+                        select: {
+                            name: true,
+                            email: true,
+                            phone: true
+                        }
+                    }
+                }
+            }
         }
     });
-    if (!studentExists) {
-        throw new ApiError(400, "Student does not exist");
+    
+    if (!student) {
+        throw new ApiError(404, "Student profile not found");
     }
+    
+    res.status(200).json(new ApiResponse(200, student, "Student profile fetched successfully"));
+});
 
-    const updatedStudent = await prisma.student.update({
-        where: {
-            id
+
+
+// Get student attendance (for students to view their own attendance)
+const getStudentAttendance = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = req.user?.id;
+    const { startDate, endDate, page = 1, limit = 10 } = req.query;
+    const skip = (Number(page) - 1) * Number(limit);
+    
+    if (req.user?.role !== Role.STUDENT) {
+        throw new ApiError(403, "Only students can access this endpoint");
+    }
+    
+    const student = await prisma.student.findUnique({
+        where: { userId }
+    });
+    
+    if (!student) {
+        throw new ApiError(404, "Student profile not found");
+    }
+    
+    const where: any = { studentId: student.id };
+    if (startDate && endDate) {
+        where.date = {
+            gte: new Date(startDate as string),
+            lte: new Date(endDate as string)
+        };
+    }
+    
+    const [attendance, total] = await Promise.all([
+        prisma.attendance.findMany({
+            where,
+            skip,
+            take: Number(limit),
+            include: {
+                class: {
+                    select: {
+                        name: true,
+                        subjects: true
+                    }
+                },
+                teacher: {
+                    select: {
+                        name: true
+                    }
+                }
+            },
+            orderBy: { date: 'desc' }
+        }),
+        prisma.attendance.count({ where })
+    ]);
+    
+    // Calculate attendance statistics
+    const totalPresent = await prisma.attendance.count({
+        where: { ...where, status: 'PRESENT' }
+    });
+    
+    const attendancePercentage = total > 0 ? (totalPresent / total) * 100 : 0;
+    
+    res.status(200).json(new ApiResponse(200, {
+        attendance,
+        statistics: {
+            totalClasses: total,
+            totalPresent,
+            totalAbsent: total - totalPresent,
+            attendancePercentage: Math.round(attendancePercentage * 100) / 100
         },
-        data: {
-            name,
-            rollNo
+        pagination: {
+            page: Number(page),
+            limit: Number(limit),
+            total,
+            pages: Math.ceil(total / Number(limit))
         }
-    });
-    res.status(200).json(new ApiResponse(200, updatedStudent, "Student updated successfully"));
-})
-
-// delete student
-const deleteStudent = asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
-    if (!id) {
-        throw new ApiError(400, "Id is required");
-    }
-
-    const studentExists = await prisma.student.findFirst({
-        where: {
-            id
-        }
-    });
-    if (!studentExists) {
-        throw new ApiError(400, "Student does not exist");
-    }
-
-    const deletedStudent = await prisma.student.delete({
-        where: {
-            id
-        }
-    });
-    res.status(200).json(new ApiResponse(200, deletedStudent, "Student deleted successfully"));
-})
+    }, "Student attendance fetched successfully"));
+});
 
 export {
-    addStudent,
-    getStudents,
-    updateStudent,
-    deleteStudent
-}
+    getStudentsByClass,
+    getStudentProfile,
+    getStudentAttendance
+};

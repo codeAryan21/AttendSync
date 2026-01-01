@@ -1,10 +1,11 @@
 import { Router } from "express"
 import { authMiddleware } from "../middlewares/auth.middleware";
-import { requireTeacher } from "../middlewares/role.middleware";
+import { requireTeacher, requireAdmin } from "../middlewares/role.middleware";
 import { 
     markAttendance, 
     toggleAttendance,
     getAttendanceByClassAndDate,
+    getAttendanceByClass,
     bulkSyncAttendance 
 } from "../controllers/attendance.controller";
 
@@ -18,6 +19,9 @@ router.put("/toggle", authMiddleware, requireTeacher, toggleAttendance);
 
 // Get attendance by class & date (Teachers and Admin)
 router.get("/", authMiddleware, requireTeacher, getAttendanceByClassAndDate);
+
+// Get attendance by class ID (Admin only)
+router.get("/:classId", authMiddleware, requireAdmin, getAttendanceByClass);
 
 // Offline bulk sync attendance (Teachers only)
 router.post("/bulk-sync", authMiddleware, requireTeacher, bulkSyncAttendance);
