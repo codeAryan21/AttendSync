@@ -11,6 +11,8 @@ import {
     getAllClasses,
     getClassById,
     getReports,
+    getClassAttendanceDetails,
+    getOverallReport,
     getSettings,
     updateSettings,
     testEmailSettings,
@@ -33,6 +35,8 @@ router.get("/stats", authMiddleware, requireAdmin, getSystemStats);
 router.get("/classes", authMiddleware, requireAdmin, getAllClasses);
 router.get("/classes/:id", authMiddleware, requireAdmin, getClassById);
 router.get("/reports", authMiddleware, requireAdmin, getReports);
+router.get("/reports/overall", authMiddleware, requireAdmin, getOverallReport);
+router.get("/reports/class/:classId", authMiddleware, requireAdmin, getClassAttendanceDetails);
 router.get("/settings", authMiddleware, requireAdmin, getSettings);
 router.put("/settings", authMiddleware, requireAdmin, updateSettings);
 router.post("/settings/test-email", authMiddleware, requireAdmin, testEmailSettings);

@@ -7,7 +7,8 @@ import {
     forgotPassword,
     resetPassword,
     refreshAccessToken,
-    getCurrentUser
+    getCurrentUser,
+    getPublicSettings
 } from "../controllers/auth.controller";
 import { authMiddleware } from "../middlewares/auth.middleware";
 import { validate } from "../middlewares/validate.middleware";
@@ -23,5 +24,6 @@ router.post("/change-password", authMiddleware, changePassword);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
 router.post("/refresh-token", refreshAccessToken)
+router.get("/settings", authMiddleware, getPublicSettings);
 
 export default router;

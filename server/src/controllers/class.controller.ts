@@ -250,9 +250,90 @@ const deleteClass = asyncHandler(async (req: AuthRequest, res: Response) => {
     res.status(200).json(new ApiResponse(200, {}, "Class deleted successfully"));
 })
 
+// Get class by ID (for teachers to view class details)
+const getClassById = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { id } = req.params;
+    
+    if (!id) {
+        throw new ApiError(400, "Class ID is required");
+    }
+    
+    const classData = await prisma.class.findUnique({
+        where: { id },
+        include: {
+            teacher: {
+                select: {
+                    id: true,
+                    name: true,
+                    email: true
+                }
+            },
+            students: {
+                select: {
+                    id: true,
+                    rollNo: true,
+                    user: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true
+                        }
+                    }
+                },
+                orderBy: { rollNo: 'asc' }
+            },
+            _count: {
+                select: { students: true }
+            }
+        }
+    });
+    
+    if (!classData) {
+        throw new ApiError(404, "Class not found");
+    }
+    
+    // Check if teacher has access to this class
+    if (req.user?.role === Role.TEACHER && classData.teacherId !== req.user?.id) {
+        throw new ApiError(403, "You can only view your own classes");
+    }
+    
+    // Calculate attendance stats
+    const totalAttendance = await prisma.attendance.count({
+        where: { classId: id }
+    });
+    
+    const presentCount = await prisma.attendance.count({
+        where: { classId: id, status: 'PRESENT' }
+    });
+    
+    const uniqueDates = await prisma.attendance.findMany({
+        where: { classId: id },
+        select: { date: true },
+        distinct: ['date']
+    });
+    
+    const totalClasses = uniqueDates.length;
+    const totalStudents = classData._count.students;
+    const averageAttendance = totalClasses > 0 && totalStudents > 0 
+        ? Math.round((presentCount / (totalStudents * totalClasses)) * 100) 
+        : 0;
+    
+    const classWithStats = {
+        ...classData,
+        attendanceStats: {
+            totalClasses,
+            averageAttendance,
+            totalStudents
+        }
+    };
+    
+    res.status(200).json(new ApiResponse(200, classWithStats, "Class details fetched successfully"));
+});
+
 export {
     createClass, 
     getAllClasses,
     updateClass,
-    deleteClass
+    deleteClass,
+    getClassById
 }

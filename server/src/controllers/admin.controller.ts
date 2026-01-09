@@ -7,6 +7,7 @@ import prisma from "../db/db";
 import { hashPassword } from "../services/auth.service";
 import { Role } from "@prisma/client";
 import { calculateClassAttendanceStats, getTodayAttendance, getLowAttendanceStudents } from "../utils/attendanceUtils";
+import { validateStudentData, formatAddressWithInfo } from "../utils/validationUtils";
 
 interface CreateUserBody {
     name: string;
@@ -124,28 +125,14 @@ const createUser = asyncHandler(async (req: AuthRequest, res: Response) => {
     }
     
     // Validate student-specific requirements
-    if (role === "STUDENT") {
-        if (!rollNo || !classId) {
-            throw new ApiError(400, "Roll number and class ID are required for students");
-        }
-        
-        const classExists = await prisma.class.findUnique({ where: { id: classId } });
-        if (!classExists) {
-            throw new ApiError(400, "Invalid class ID");
-        }
-        
-        const existingStudent = await prisma.student.findFirst({
-            where: { rollNo, classId }
-        });
-        if (existingStudent) {
-            throw new ApiError(400, "Roll number already exists in this class");
-        }
+    if (role === "STUDENT" && rollNo && classId) {
+        await validateStudentData(rollNo, classId);
     }
     
     const hashedPassword = await hashPassword(password);
     
     const result = await prisma.$transaction(async (tx) => {
-        // Create user with basic info including dateOfBirth and gender in address field for now
+        // Create user with basic info
         const userData: any = {
             name,
             email,
@@ -160,14 +147,6 @@ const createUser = asyncHandler(async (req: AuthRequest, res: Response) => {
             specialization
         };
         
-        // Store additional info in address field temporarily
-        if (dateOfBirth || gender) {
-            const additionalInfo = [];
-            if (dateOfBirth) additionalInfo.push(`DOB: ${dateOfBirth}`);
-            if (gender) additionalInfo.push(`Gender: ${gender}`);
-            userData.address = address ? `${address} | ${additionalInfo.join(', ')}` : additionalInfo.join(', ');
-        }
-        
         const user = await tx.user.create({
             data: userData
         });
@@ -179,7 +158,10 @@ const createUser = asyncHandler(async (req: AuthRequest, res: Response) => {
                     rollNo,
                     classId,
                     parentName,
-                    parentPhone
+                    parentPhone,
+                    dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+                    gender,
+                    address
                 }
             });
         }
@@ -218,14 +200,8 @@ const updateUser = asyncHandler(async (req: AuthRequest, res: Response) => {
         throw new ApiError(404, "User not found");
     }
     
-    // Prepare address with additional info
-    let finalAddress = address;
-    if (dateOfBirth || gender) {
-        const additionalInfo = [];
-        if (dateOfBirth) additionalInfo.push(`DOB: ${dateOfBirth}`);
-        if (gender) additionalInfo.push(`Gender: ${gender}`);
-        finalAddress = address ? `${address} | ${additionalInfo.join(', ')}` : additionalInfo.join(', ');
-    }
+    // Prepare address without additional info formatting
+    const finalAddress = address;
     
     const updatedUser = await prisma.user.update({
         where: { id },
@@ -259,14 +235,17 @@ const updateUser = asyncHandler(async (req: AuthRequest, res: Response) => {
     });
     
     // Update student profile if user is a student
-    if (user.role === 'STUDENT' && (rollNo || classId || parentName !== undefined || parentPhone !== undefined)) {
+    if (user.role === 'STUDENT' && (rollNo || classId || parentName !== undefined || parentPhone !== undefined || dateOfBirth !== undefined || gender !== undefined || address !== undefined)) {
         await prisma.student.updateMany({
             where: { userId: id },
             data: {
                 ...(rollNo && { rollNo }),
                 ...(classId && { classId }),
                 ...(parentName !== undefined && { parentName }),
-                ...(parentPhone !== undefined && { parentPhone })
+                ...(parentPhone !== undefined && { parentPhone }),
+                ...(dateOfBirth !== undefined && { dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null }),
+                ...(gender !== undefined && { gender }),
+                ...(address !== undefined && { address })
             }
         });
     }
@@ -605,7 +584,11 @@ const getReports = asyncHandler(async (req: AuthRequest, res: Response) => {
         }),
         
         // Low attendance students
-        getLowAttendanceStudents(75)
+        (async () => {
+            const settings = await prisma.settings.findFirst();
+            const threshold = settings?.attendanceThreshold || 75;
+            return getLowAttendanceStudents(threshold);
+        })()
     ]);
     
     const reportData = {
@@ -615,6 +598,194 @@ const getReports = asyncHandler(async (req: AuthRequest, res: Response) => {
     };
     
     res.status(200).json(new ApiResponse(200, reportData, "Reports data fetched successfully"));
+});
+
+// Get class attendance details with student-wise data (Admin only)
+const getClassAttendanceDetails = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { classId } = req.params;
+    
+    if (!classId) {
+        throw new ApiError(400, "Class ID is required");
+    }
+    
+    const classData = await prisma.class.findUnique({
+        where: { id: classId },
+        include: {
+            teacher: {
+                select: {
+                    name: true,
+                    email: true
+                }
+            },
+            students: {
+                select: {
+                    id: true,
+                    rollNo: true,
+                    user: {
+                        select: {
+                            name: true,
+                            email: true
+                        }
+                    }
+                },
+                orderBy: {
+                    rollNo: 'asc'
+                }
+            }
+        }
+    });
+    
+    if (!classData) {
+        throw new ApiError(404, "Class not found");
+    }
+    
+    // Get attendance records for this class
+    const attendanceRecords = await prisma.attendance.findMany({
+        where: {
+            classId
+        },
+        include: {
+            student: {
+                select: {
+                    id: true,
+                    rollNo: true,
+                    user: {
+                        select: {
+                            name: true
+                        }
+                    }
+                }
+            }
+        },
+        orderBy: [
+            { date: 'desc' },
+            { student: { rollNo: 'asc' } }
+        ]
+    });
+    
+    // Calculate student-wise attendance stats
+    const studentStats = await Promise.all(
+        classData.students.map(async (student) => {
+            const totalClasses = await prisma.attendance.count({
+                where: { studentId: student.id }
+            });
+            const totalPresent = await prisma.attendance.count({
+                where: { studentId: student.id, status: 'PRESENT' }
+            });
+            const attendancePercentage = totalClasses > 0 ? Math.round((totalPresent / totalClasses) * 100) : 0;
+            
+            return {
+                ...student,
+                totalClasses,
+                totalPresent,
+                totalAbsent: totalClasses - totalPresent,
+                attendancePercentage
+            };
+        })
+    );
+    
+    // Get class statistics
+    const classStats = await calculateClassAttendanceStats(classId);
+    
+    const result = {
+        class: {
+            id: classData.id,
+            name: classData.name,
+            section: classData.section,
+            teacher: classData.teacher
+        },
+        students: studentStats,
+        attendanceRecords,
+        stats: classStats
+    };
+    
+    res.status(200).json(new ApiResponse(200, result, "Class attendance details fetched successfully"));
+});
+
+// Get overall system attendance report (Admin only)
+const getOverallReport = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const [totalStats, classWiseStats, monthlyTrend] = await Promise.all([
+        // Overall system statistics
+        Promise.all([
+            prisma.student.count({ where: { isActive: true } }),
+            prisma.class.count({ where: { isActive: true } }),
+            prisma.attendance.count(),
+            prisma.attendance.count({ where: { status: 'PRESENT' } })
+        ]).then(([totalStudents, totalClasses, totalAttendanceRecords, totalPresent]) => ({
+            totalStudents,
+            totalClasses,
+            totalAttendanceRecords,
+            totalPresent,
+            overallAttendanceRate: totalAttendanceRecords > 0 ? Math.round((totalPresent / totalAttendanceRecords) * 100) : 0
+        })),
+        
+        // Class-wise statistics
+        prisma.class.findMany({
+            where: { isActive: true },
+            select: {
+                id: true,
+                name: true,
+                section: true
+            }
+        }).then(async (classes) => {
+            return Promise.all(classes.map(async (cls) => {
+                const stats = await calculateClassAttendanceStats(cls.id);
+                return {
+                    id: cls.id,
+                    className: `${cls.name} - ${cls.section}`,
+                    ...stats
+                };
+            }));
+        }),
+        
+        // Monthly attendance trend for last 12 months
+        Promise.resolve().then(async () => {
+            const monthlyData = [];
+            const now = new Date();
+            
+            for (let i = 11; i >= 0; i--) {
+                const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                const nextMonth = new Date(date.getFullYear(), date.getMonth() + 1, 1);
+                
+                const [totalRecords, presentRecords] = await Promise.all([
+                    prisma.attendance.count({
+                        where: {
+                            date: {
+                                gte: date,
+                                lt: nextMonth
+                            }
+                        }
+                    }),
+                    prisma.attendance.count({
+                        where: {
+                            status: 'PRESENT',
+                            date: {
+                                gte: date,
+                                lt: nextMonth
+                            }
+                        }
+                    })
+                ]);
+                
+                monthlyData.push({
+                    month: date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+                    totalRecords,
+                    presentRecords,
+                    attendanceRate: totalRecords > 0 ? Math.round((presentRecords / totalRecords) * 100) : 0
+                });
+            }
+            
+            return monthlyData;
+        })
+    ]);
+    
+    const reportData = {
+        totalStats,
+        classWiseStats,
+        monthlyTrend
+    };
+    
+    res.status(200).json(new ApiResponse(200, reportData, "Overall report fetched successfully"));
 });
 
 // Get system settings (Admin only)
@@ -828,6 +999,8 @@ export {
     getAllClasses,
     getClassById,
     getReports,
+    getClassAttendanceDetails,
+    getOverallReport,
     getSettings,
     updateSettings,
     testEmailSettings,

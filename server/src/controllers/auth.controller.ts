@@ -6,6 +6,7 @@ import prisma from "../db/db";
 import { hashPassword, comparePassword, generateToken, verifyToken, generateRefreshToken } from "../services/auth.service";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { Role } from "@prisma/client";
+import { validateStudentData } from "../utils/validationUtils";
 
 interface registerBody {
     name: string;
@@ -99,29 +100,8 @@ const register = asyncHandler(async (req: Request, res: Response) => {
     }
 
     // Validate student-specific requirements
-    if (role === "STUDENT") {
-        if (!rollNo || !classId) {
-            throw new ApiError(400, "Roll number and class ID are required for students")
-        }
-        
-        // Check if class exists
-        const classExists = await prisma.class.findUnique({
-            where: { id: classId }
-        })
-        if (!classExists) {
-            throw new ApiError(400, "Invalid class ID")
-        }
-        
-        // Check if roll number is unique in the class
-        const existingStudent = await prisma.student.findFirst({
-            where: {
-                rollNo,
-                classId
-            }
-        })
-        if (existingStudent) {
-            throw new ApiError(400, "Roll number already exists in this class")
-        }
+    if (role === "STUDENT" && rollNo && classId) {
+        await validateStudentData(rollNo, classId);
     }
 
     const hashedPassword = await hashPassword(password)
@@ -394,6 +374,32 @@ const getCurrentUser = asyncHandler(async (req: AuthRequest, res: Response) => {
     res.status(200).json(new ApiResponse(200, user, "User fetched successfully"));
 });
 
+// get public settings for all authenticated users
+const getPublicSettings = asyncHandler(async (req: AuthRequest, res: Response) => {
+    let settings = await prisma.settings.findFirst();
+    
+    if (!settings) {
+        settings = await prisma.settings.create({
+            data: {
+                instituteName: 'AttendSync Institute',
+                attendanceThreshold: 75,
+                autoMarkAbsent: false,
+                emailNotifications: true
+            }
+        });
+    }
+    
+    // Return only public settings that all users need
+    const publicSettings = {
+        attendanceThreshold: settings.attendanceThreshold,
+        instituteName: settings.instituteName,
+        autoMarkAbsent: settings.autoMarkAbsent,
+        emailNotifications: settings.emailNotifications
+    };
+    
+    res.status(200).json(new ApiResponse(200, publicSettings, "Settings fetched successfully"));
+});
+
 export {
     register,
     login,
@@ -402,5 +408,6 @@ export {
     forgotPassword,
     resetPassword,
     refreshAccessToken,
-    getCurrentUser
+    getCurrentUser,
+    getPublicSettings
 };

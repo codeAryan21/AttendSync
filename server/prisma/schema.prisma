@@ -79,6 +79,9 @@ model Student {
   classId   String
   parentName String?
   parentPhone String?
+  dateOfBirth DateTime?
+  gender    String?
+  address   String?
   admissionDate DateTime @default(now())
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
