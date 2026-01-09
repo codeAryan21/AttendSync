@@ -47,3 +47,16 @@ logs
 
 # Coverage
 coverage/
+
+# Next.js
+.next/
+.vercel/
+
+# Package manager
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts

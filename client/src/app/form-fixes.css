@@ -1,0 +1,32 @@
+/* Fix form input text colors */
+input[type="text"],
+input[type="email"], 
+input[type="password"],
+input[type="tel"],
+input[type="date"],
+select,
+textarea {
+  color: #111827 !important; /* text-gray-900 */
+}
+
+input[type="text"]:disabled,
+input[type="email"]:disabled,
+input[type="password"]:disabled,
+input[type="tel"]:disabled,
+select:disabled,
+textarea:disabled {
+  color: #6b7280 !important; /* text-gray-500 */
+  background-color: #f9fafb !important; /* bg-gray-50 */
+}
+
+/* Ensure placeholder text is visible */
+input::placeholder,
+textarea::placeholder {
+  color: #9ca3af !important; /* text-gray-400 */
+}
+
+/* Fix select option colors */
+select option {
+  color: #111827 !important;
+  background-color: white !important;
+}
