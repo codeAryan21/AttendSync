@@ -83,18 +83,18 @@ export default function AdminAttendancePage() {
       setClasses(enhancedClasses);
       
       // Calculate system stats
-      const totalStudents = enhancedClasses.reduce((sum, cls) => sum + cls.totalStudents, 0);
+      const totalStudents = enhancedClasses.reduce((sum: number, cls: ClassAttendanceStats) => sum + cls.totalStudents, 0);
       const totalClasses = enhancedClasses.length;
-      const overallAttendance = enhancedClasses.reduce((sum, cls) => sum + cls.averageAttendance, 0) / totalClasses || 0;
-      const studentsPresent = enhancedClasses.reduce((sum, cls) => sum + cls.presentToday, 0);
-      const studentsAbsent = enhancedClasses.reduce((sum, cls) => sum + cls.absentToday, 0);
-      const lowAttendanceAlerts = enhancedClasses.reduce((sum, cls) => sum + cls.lowAttendanceStudents, 0);
+      const overallAttendance = enhancedClasses.reduce((sum: number, cls: ClassAttendanceStats) => sum + cls.averageAttendance, 0) / totalClasses || 0;
+      const studentsPresent = enhancedClasses.reduce((sum: number, cls: ClassAttendanceStats) => sum + cls.presentToday, 0);
+      const studentsAbsent = enhancedClasses.reduce((sum: number, cls: ClassAttendanceStats) => sum + cls.absentToday, 0);
+      const lowAttendanceAlerts = enhancedClasses.reduce((sum: number, cls: ClassAttendanceStats) => sum + cls.lowAttendanceStudents, 0);
       
       setSystemStats({
         totalClasses,
         totalStudents,
         overallAttendance: Math.round(overallAttendance),
-        classesHeldToday: enhancedClasses.filter(cls => cls.recentActivity.attendanceMarked).length,
+        classesHeldToday: enhancedClasses.filter((cls: ClassAttendanceStats) => cls.recentActivity.attendanceMarked).length,
         studentsPresent,
         studentsAbsent,
         lowAttendanceAlerts

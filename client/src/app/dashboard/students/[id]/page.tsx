@@ -153,7 +153,7 @@ export default function StudentProfilePage() {
           try {
             const studentsResponse = await api.get(`/student/class/${cls.id}`);
             const classStudents = studentsResponse.data.data.students || [];
-            foundStudent = classStudents.find(s => s.user.id === params.id);
+            foundStudent = classStudents.find((s: any) => s.user.id === params.id);
             if (foundStudent) break;
           } catch (error) {
             continue;
@@ -203,7 +203,7 @@ export default function StudentProfilePage() {
     }
   };
 
-  const onSubmit = async (data: EditForm) => {
+  const onSubmit = async () => {
     try {
       await api.put(`/admin/users/${student?.user.id}`, {
         name: editForm.name,

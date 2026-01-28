@@ -70,10 +70,10 @@ function LegacyProfilePage() {
         email: user.email,
         phone: user.phone || '',
         address: user.address || '',
-        qualification: user.qualification || '',
-        experience: user.experience || 0,
-        specialization: user.specialization || '',
-        designation: user.designation || ''
+        qualification: (user as any).qualification || '',
+        experience: (user as any).experience || 0,
+        specialization: (user as any).specialization || '',
+        designation: (user as any).designation || ''
       });
       
       if (user.role === 'TEACHER') {
@@ -417,8 +417,8 @@ function LegacyProfilePage() {
 }
 function EnhancedStudentProfile() {
   const { user } = useAuthStore();
-  const [profile, setProfile] = useState(null);
-  const [attendanceStats, setAttendanceStats] = useState(null);
+  const [profile, setProfile] = useState<any>(null);
+  const [attendanceStats, setAttendanceStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -631,7 +631,7 @@ function EnhancedStudentProfile() {
             <div className="mt-6 p-4 bg-gray-50 rounded-lg">
               <p className="text-sm text-gray-600 font-medium mb-3">Subjects Enrolled:</p>
               <div className="flex flex-wrap gap-2">
-                {profile.class.subjects?.map((subject, index) => (
+                {profile.class.subjects?.map((subject: string, index: number) => (
                   <span
                     key={index}
                     className="px-3 py-2 bg-blue-100 text-blue-800 text-sm rounded-lg font-medium"

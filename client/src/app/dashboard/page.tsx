@@ -87,9 +87,9 @@ export default function DashboardPage() {
             Employee ID: {user.employeeId}
           </p>
         )}
-        {user.role === 'TEACHER' && user.designation && (
+        {user.role === 'TEACHER' && (user as any).designation && (
           <p className="text-blue-200 text-sm mt-1">
-            Designation: {user.designation}
+            Designation: {(user as any).designation}
           </p>
         )}
       </div>
@@ -284,11 +284,11 @@ function TeacherDashboard() {
       const classes = classesResponse.data.data || [];
       setMyClasses(classes);
       
-      const totalStudents = classes.reduce((sum, cls) => sum + (cls._count?.students || 0), 0);
+      const totalStudents = classes.reduce((sum: number, cls: any) => sum + (cls._count?.students || 0), 0);
       
       // Calculate today's classes based on actual schedule
       const today = new Date().toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase();
-      const todayClasses = classes.filter(cls => {
+      const todayClasses = classes.filter((cls: any) => {
         if (!cls.schedule) return false;
         return cls.schedule.toLowerCase().includes(today);
       }).length;
@@ -307,7 +307,7 @@ function TeacherDashboard() {
               
               if (result && result.attendance && Array.isArray(result.attendance)) {
                 totalRecords += result.attendance.length;
-                totalPresent += result.attendance.filter(r => r.status === 'PRESENT').length;
+                totalPresent += result.attendance.filter((r: any) => r.status === 'PRESENT').length;
               }
             } catch (error) {
               continue;
@@ -353,9 +353,9 @@ function TeacherDashboard() {
           </div>
           <div className="flex-1">
             <h2 className="text-2xl font-bold text-gray-900">{user?.name}</h2>
-            <p className="text-blue-600 font-medium">{user?.designation || 'Teacher'}</p>
-            {user?.employeeId && (
-              <p className="text-gray-600 text-sm mt-1">Employee ID: {user.employeeId}</p>
+            <p className="text-blue-600 font-medium">{(user as any)?.designation || 'Teacher'}</p>
+            {(user as any)?.employeeId && (
+              <p className="text-gray-600 text-sm mt-1">Employee ID: {(user as any).employeeId}</p>
             )}
             <div className="mt-4 space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -365,27 +365,27 @@ function TeacherDashboard() {
                 </div>
                 <div>
                   <span className="text-gray-600 text-xs block mb-1">Phone</span>
-                  <p className="font-medium text-gray-900 text-sm">{user?.phone || 'N/A'}</p>
+                  <p className="font-medium text-gray-900 text-sm">{(user as any)?.phone || 'N/A'}</p>
                 </div>
                 <div>
                   <span className="text-gray-600 text-xs block mb-1">Experience</span>
-                  <p className="font-medium text-gray-900 text-sm">{user?.experience || 0} years</p>
+                  <p className="font-medium text-gray-900 text-sm">{(user as any)?.experience || 0} years</p>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <span className="text-gray-600 text-xs block mb-1">Qualification</span>
-                  <p className="font-medium text-gray-900 text-sm">{user?.qualification || 'N/A'}</p>
+                  <p className="font-medium text-gray-900 text-sm">{(user as any)?.qualification || 'N/A'}</p>
                 </div>
                 <div>
                   <span className="text-gray-600 text-xs block mb-1">Specialization</span>
-                  <p className="font-medium text-gray-900 text-sm">{user?.specialization || 'N/A'}</p>
+                  <p className="font-medium text-gray-900 text-sm">{(user as any)?.specialization || 'N/A'}</p>
                 </div>
               </div>
-              {user?.address && (
+              {(user as any)?.address && (
                 <div>
                   <span className="text-gray-600 text-xs block mb-1">Address</span>
-                  <p className="font-medium text-gray-900 text-sm">{user.address}</p>
+                  <p className="font-medium text-gray-900 text-sm">{(user as any).address}</p>
                 </div>
               )}
             </div>
@@ -522,12 +522,19 @@ function TeacherDashboard() {
   );
 }
 
+interface Notification {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+}
+
 function EnhancedStudentDashboard() {
   const { user } = useAuthStore();
   const { settings } = useSettingsStore();
-  const [stats, setStats] = useState(null);
-  const [profile, setProfile] = useState(null);
-  const [notifications, setNotifications] = useState([]);
+  const [stats, setStats] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -854,7 +861,7 @@ function EnhancedStudentDashboard() {
             <div className="mt-4 p-4 bg-gray-50 rounded-lg">
               <p className="text-sm text-gray-600 font-medium mb-2">Subjects:</p>
               <div className="flex flex-wrap gap-2">
-                {profile.class.subjects.map((subject, index) => (
+                {profile.class.subjects.map((subject: string, index: number) => (
                   <span
                     key={index}
                     className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full font-medium"

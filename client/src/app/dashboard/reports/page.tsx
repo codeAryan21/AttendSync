@@ -79,7 +79,7 @@ export default function ReportsPage() {
 }
 
 function StudentReports() {
-  const [stats, setStats] = useState(null);
+  const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

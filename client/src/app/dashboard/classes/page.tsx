@@ -80,7 +80,7 @@ export default function ClassesPage() {
       if (user?.role === 'ADMIN') {
         const teacherResponse = await api.get('/admin/users?role=TEACHER');
         const allUsers = teacherResponse.data.data.users || [];
-        const actualTeachers = allUsers.filter(user => user.role === 'TEACHER');
+        const actualTeachers = allUsers.filter((user: any) => user.role === 'TEACHER');
         setTeachers(actualTeachers);
       }
     } catch (error: any) {
@@ -226,7 +226,7 @@ export default function ClassesPage() {
       <div className="bg-white shadow rounded-lg">
         <div className="px-6 py-4 border-b border-gray-200">
           <h2 className="text-lg font-medium text-gray-900">
-            {user.role === 'ADMIN' ? 'All Classes' : 'My Classes'} ({filteredClasses.length})
+            {user?.role === 'ADMIN' ? 'All Classes' : 'My Classes'} ({filteredClasses.length})
           </h2>
         </div>
         
@@ -260,7 +260,7 @@ export default function ClassesPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                       </svg>
                     </button>
-                    {user.role === 'ADMIN' && (
+                    {user?.role === 'ADMIN' && (
                       <>
                         <button 
                           onClick={() => openEditModal(cls)}
@@ -304,7 +304,7 @@ export default function ClassesPage() {
                 </div>
 
                 {/* Actions */}
-                {user.role === 'TEACHER' && (
+                {user?.role === 'TEACHER' && (
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       onClick={() => router.push(`/dashboard/attendance/teacher?classId=${cls.id}`)}

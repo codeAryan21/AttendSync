@@ -137,7 +137,7 @@ export default function StudentsPage() {
       <div className="bg-white shadow rounded-lg">
         <div className="px-6 py-4 border-b border-gray-200">
           <h2 className="text-lg font-medium text-gray-900">
-            {user.role === 'ADMIN' ? 'All Students' : 'My Students'} ({filteredStudents.length})
+            {user?.role === 'ADMIN' ? 'All Students' : 'My Students'} ({filteredStudents.length})
           </h2>
         </div>
         
@@ -211,7 +211,7 @@ export default function StudentsPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">
-                        {user.role === 'ADMIN' && (
+                        {user?.role === 'ADMIN' && (
                           <button
                             onClick={() => { setSelectedStudent(student); setShowDeleteModal(true); }}
                             className="text-red-600 hover:text-red-900"
@@ -219,7 +219,7 @@ export default function StudentsPage() {
                             Delete
                           </button>
                         )}
-                        {user.role === 'TEACHER' && (
+                        {user?.role === 'TEACHER' && (
                           <span className="text-gray-500 text-sm">View Only</span>
                         )}
                       </div>
