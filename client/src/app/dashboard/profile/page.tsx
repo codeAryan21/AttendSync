@@ -165,14 +165,12 @@ function LegacyProfilePage() {
                       </button>
                     </>
                   ) : (
-                    user.role !== 'TEACHER' && (
-                      <button
-                        onClick={() => setEditing(true)}
-                        className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
-                      >
-                        Edit Profile
-                      </button>
-                    )
+                    <button
+                      onClick={() => setEditing(true)}
+                      className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                    >
+                      Edit Profile
+                    </button>
                   )}
                 </div>
               </div>
@@ -231,9 +229,10 @@ function LegacyProfilePage() {
                       <input
                         type="text"
                         value={profileData.qualification}
-                        disabled
+                        onChange={(e) => setProfileData({ ...profileData, qualification: e.target.value })}
+                        disabled={!editing}
                         placeholder="e.g., M.Sc. Mathematics, B.Tech CSE"
-                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-50 text-gray-500"
+                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
                       />
                     </div>
 
@@ -242,9 +241,10 @@ function LegacyProfilePage() {
                       <input
                         type="number"
                         value={profileData.experience}
-                        disabled
+                        onChange={(e) => setProfileData({ ...profileData, experience: parseInt(e.target.value) || 0 })}
+                        disabled={!editing}
                         min="0"
-                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-50 text-gray-500"
+                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
                       />
                     </div>
 
@@ -253,9 +253,10 @@ function LegacyProfilePage() {
                       <input
                         type="text"
                         value={profileData.specialization}
-                        disabled
+                        onChange={(e) => setProfileData({ ...profileData, specialization: e.target.value })}
+                        disabled={!editing}
                         placeholder="e.g., Mathematics, Physics, Computer Science"
-                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-50 text-gray-500"
+                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
                       />
                     </div>
 
@@ -264,15 +265,29 @@ function LegacyProfilePage() {
                       <input
                         type="text"
                         value={profileData.designation}
-                        disabled
+                        onChange={(e) => setProfileData({ ...profileData, designation: e.target.value })}
+                        disabled={!editing}
                         placeholder="e.g., Senior Teacher, Assistant Professor"
-                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-50 text-gray-500"
+                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
                       />
                     </div>
                   </>
                 )}
 
                 {user.role !== 'TEACHER' && (
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700">Address</label>
+                    <textarea
+                      value={profileData.address}
+                      onChange={(e) => setProfileData({ ...profileData, address: e.target.value })}
+                      disabled={!editing}
+                      rows={3}
+                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
+                    />
+                  </div>
+                )}
+
+                {user.role === 'TEACHER' && (
                   <div className="sm:col-span-2">
                     <label className="block text-sm font-medium text-gray-700">Address</label>
                     <textarea
@@ -510,16 +525,16 @@ function EnhancedStudentProfile() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Roll Number</label>
                   <div className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
-                    {profile.user.phone || 'N/A'}
+                    {profile.rollNo || 'N/A'}
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Roll Number</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
                   <div className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
-                    {profile.rollNo}
+                    {profile.user?.phone || 'Not provided'}
                   </div>
                 </div>
 

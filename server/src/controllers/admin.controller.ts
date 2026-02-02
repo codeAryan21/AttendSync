@@ -5,6 +5,7 @@ import { AuthRequest } from "../middlewares/auth.middleware";
 import { Response } from "express";
 import prisma from "../db/db";
 import { hashPassword } from "../services/auth.service";
+import { sendLoginCredentials } from "../services/email.service";
 import { Role } from "@prisma/client";
 import { calculateClassAttendanceStats, getTodayAttendance, getLowAttendanceStudents } from "../utils/attendanceUtils";
 import { validateStudentData, formatAddressWithInfo } from "../utils/validationUtils";
@@ -111,8 +112,8 @@ const createUser = asyncHandler(async (req: AuthRequest, res: Response) => {
         gender
     }: CreateUserBody = req.body;
     
-    if (!name || !email || !password || !role) {
-        throw new ApiError(400, "Name, email, password and role are required");
+    if (!name || !email || !role) {
+        throw new ApiError(400, "Name, email and role are required");
     }
     
     const existingUser = await prisma.user.findUnique({ where: { email } });
@@ -120,16 +121,26 @@ const createUser = asyncHandler(async (req: AuthRequest, res: Response) => {
         throw new ApiError(400, "User already exists");
     }
     
-    if (password.length < 6) {
+    // Generate default password if not provided: Name@123 (first letter capitalized)
+    const cleanName = name.replace(/\s+/g, '').toLowerCase();
+    if (!cleanName) {
+        throw new ApiError(400, "Name must contain at least one non-whitespace character");
+    }
+    const defaultPassword = password || `${cleanName.charAt(0).toUpperCase() + cleanName.slice(1)}@123`;
+    
+    if (defaultPassword.length < 6) {
         throw new ApiError(400, "Password must be at least 6 characters long");
     }
     
     // Validate student-specific requirements
-    if (role === "STUDENT" && rollNo && classId) {
+    if (role === "STUDENT") {
+        if (!rollNo || !classId) {
+            throw new ApiError(400, "Roll number and class are required for students");
+        }
         await validateStudentData(rollNo, classId);
     }
     
-    const hashedPassword = await hashPassword(password);
+    const hashedPassword = await hashPassword(defaultPassword);
     
     const result = await prisma.$transaction(async (tx) => {
         // Create user with basic info
@@ -151,26 +162,42 @@ const createUser = asyncHandler(async (req: AuthRequest, res: Response) => {
             data: userData
         });
         
-        if (role === "STUDENT" && rollNo && classId) {
+        if (role === "STUDENT") {
+            const studentData = {
+                userId: user.id,
+                rollNo: rollNo!,
+                classId: classId!,
+                parentName: parentName || null,
+                parentPhone: parentPhone || null,
+                dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+                gender: gender || null,
+                address: address || null
+            };
+            
             await tx.student.create({
-                data: {
-                    userId: user.id,
-                    rollNo,
-                    classId,
-                    parentName,
-                    parentPhone,
-                    dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-                    gender,
-                    address
-                }
+                data: studentData
             });
         }
         
         return user;
     });
     
+    // Send login credentials via email
+    let emailSent = false;
+    try {
+        await sendLoginCredentials(email, name, defaultPassword);
+        emailSent = true;
+    } catch (error) {
+        console.error('Email sending failed:', error);
+        // Continue without failing the user creation
+    }
+    
     const { password: _, ...userWithoutPassword } = result;
-    res.status(201).json(new ApiResponse(201, userWithoutPassword, "User created successfully"));
+    const message = emailSent 
+        ? "User created successfully and credentials sent via email"
+        : "User created successfully but email delivery failed";
+    
+    res.status(201).json(new ApiResponse(201, userWithoutPassword, message));
 });
 
 // Update user (Admin only)

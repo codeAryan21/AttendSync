@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuthStore } from '@/store/authStore';
 import toast from 'react-hot-toast';
+import Link from 'next/link';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -22,6 +23,7 @@ export default function HomePage() {
   const [loginType, setLoginType] = useState<'staff' | 'student'>('staff');
   const [showPassword, setShowPassword] = useState(false);
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
 
   const {
     register,
@@ -32,6 +34,16 @@ export default function HomePage() {
   });
 
   useEffect(() => {
+    // Check for reset success parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('reset') === 'success') {
+      setShowSuccessMessage(true);
+      // Clean URL
+      window.history.replaceState({}, document.title, '/');
+      // Hide message after 5 seconds
+      setTimeout(() => setShowSuccessMessage(false), 5000);
+    }
+
     // Set initial time on client
     setCurrentTime(new Date());
     
@@ -153,6 +165,16 @@ export default function HomePage() {
 
       {/* Right Side - Login Form */}
       <div className="w-full lg:w-9/20 min-h-screen lg:h-full bg-white flex items-center justify-center p-4 lg:p-6">
+        {/* Success Message */}
+        {showSuccessMessage && (
+          <div className="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center">
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Password reset successful! You can now login.
+          </div>
+        )}
+        
         <div className="max-w-sm w-full">
           <div className="text-center mb-6 lg:mb-6">
             <div className="w-12 h-12 lg:w-14 lg:h-14 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
@@ -251,6 +273,15 @@ export default function HomePage() {
                 )}
               </div>
 
+              <div className="text-right">
+                <Link
+                  href="/forgot-password"
+                  className="text-xs text-indigo-600 hover:text-indigo-500 transition-colors"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+
               <button
                 type="submit"
                 disabled={isLoading}
@@ -271,7 +302,7 @@ export default function HomePage() {
                 )}
               </button>
 
-              <div className="text-center pt-2">
+              <div className="text-center pt-4">
                 <p className="text-xs text-gray-500">
                   🔒 Contact administrator for access
                 </p>
@@ -281,7 +312,7 @@ export default function HomePage() {
 
           <div className="mt-4 text-center">
             <p className="text-xs text-gray-400">
-              © 2024 AttendSync. Trusted by 1000+ institutions.
+              © 2026 AttendSync. Trusted by 1000+ institutions.
             </p>
           </div>
         </div>

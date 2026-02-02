@@ -168,10 +168,6 @@ const updateClass = asyncHandler(async (req: AuthRequest, res: Response) => {
     const { name, course, subjects, academicYear, section, schedule, description, teacherId: newTeacherId, subjectTeachers }: updateClassBody = req.body;
     const currentUserId = req.user?.id;
     
-    if (!name || !course || !subjects || !academicYear || !section) {
-        throw new ApiError(400, "Name, course, subjects, academic year and section are required");
-    }
-    
     const existingClass = await prisma.class.findUnique({
         where: { id }
     });
@@ -184,16 +180,16 @@ const updateClass = asyncHandler(async (req: AuthRequest, res: Response) => {
         throw new ApiError(403, "Not authorized to update this class");
     }
     
-    const updateData: any = { 
-        name,
-        course,
-        subjects,
-        academicYear,
-        section,
-        schedule,
-        description,
-        ...(newTeacherId !== undefined && { teacherId: newTeacherId })
-    };
+    const updateData: any = {};
+    
+    if (name !== undefined) updateData.name = name;
+    if (course !== undefined) updateData.course = course;
+    if (subjects !== undefined) updateData.subjects = subjects;
+    if (academicYear !== undefined) updateData.academicYear = academicYear;
+    if (section !== undefined) updateData.section = section;
+    if (schedule !== undefined) updateData.schedule = schedule;
+    if (description !== undefined) updateData.description = description;
+    if (newTeacherId !== undefined) updateData.teacherId = newTeacherId;
     
     // Update subject teachers in metadata
     if (subjectTeachers && Array.isArray(subjectTeachers)) {

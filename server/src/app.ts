@@ -38,11 +38,22 @@ app.get("/health", (_req, res) => {
   res.json({ status: "OK" });
 });
 
-// Routes
-app.get("/api/protected", authMiddleware, (req, res) => {
+// API v1 Routes
+const v1Router = express.Router();
+
+v1Router.get("/protected", authMiddleware, (req, res) => {
   res.json({ message: "This is a protected route" });
 });
 
+v1Router.use("/auth", authRouter);
+v1Router.use("/admin", adminRouter);
+v1Router.use("/class", classRouter);
+v1Router.use("/student", studentRouter);
+v1Router.use("/teacher", teacherRouter);
+v1Router.use("/attendance", attendanceRouter);
+v1Router.use("/attendance-analytics", attendanceAnalyticsRouter);
+
+app.use("/api/v1", v1Router);
 
 app.use("/api/auth", authRouter);
 app.use("/api/admin", adminRouter);

@@ -4,6 +4,7 @@ import { ApiError } from "../utils/apiError";
 import { Request, Response } from "express";
 import prisma from "../db/db";
 import { hashPassword, comparePassword, generateToken, verifyToken, generateRefreshToken } from "../services/auth.service";
+import { sendPasswordResetOTP } from "../services/email.service";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import { Role } from "@prisma/client";
 import { validateStudentData } from "../utils/validationUtils";
@@ -37,7 +38,8 @@ interface forgotPasswordBody {
 }
 
 interface resetPasswordBody {
-    token: string;
+    email: string;
+    otp: string;
     newPassword: string;
 }
 
@@ -254,68 +256,126 @@ const forgotPassword = asyncHandler(async (req: Request, res: Response) => {
     }
 
     const user = await prisma.user.findUnique({
-        where: {
-            email
-        }
-    })
+        where: { email }
+    });
     if (!user) {
         throw new ApiError(404, "User not found");
     }
 
-    const token = generateToken({
-        id: user.id,
-        role: user.role,
-        tokenVersion: user.tokenVersion,
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    // Delete any existing password reset requests for this email
+    await (prisma as any).passwordReset.deleteMany({
+        where: { email }
     });
 
-    // TODO: send email (nodemailer)
-    console.log("TOKEN: ", token);
+    // Create new password reset request
+    await (prisma as any).passwordReset.create({
+        data: {
+            email,
+            otp,
+            expiresAt
+        }
+    });
 
-    res.status(200).json(new ApiResponse(200, { token }, "Password reset link sent successfully"))
-})
+    // Send OTP via email
+    try {
+        await sendPasswordResetOTP(email, otp, user.name);
+        res.status(200).json(new ApiResponse(200, {}, "Password reset OTP sent to your email"));
+    } catch (error) {
+        console.error('Email sending failed:', error);
+        res.status(200).json(new ApiResponse(200, { otp }, "OTP generated (email service unavailable)"));
+    }
+});
+
+// verify-reset-otp
+const verifyResetOTP = asyncHandler(async (req: Request, res: Response) => {
+    const { email, otp } = req.body;
+    if (!email || !otp) {
+        throw new ApiError(400, "Email and OTP are required");
+    }
+
+    // Find valid password reset request
+    const passwordReset = await (prisma as any).passwordReset.findFirst({
+        where: {
+            email,
+            otp,
+            used: false,
+            expiresAt: {
+                gt: new Date()
+            }
+        }
+    });
+
+    if (!passwordReset) {
+        throw new ApiError(400, "Invalid or expired OTP");
+    }
+
+    res.status(200).json(new ApiResponse(200, {}, "OTP verified successfully"));
+});
 
 // reset-password
 const resetPassword = asyncHandler(async (req: Request, res: Response) => {
-    const { token, newPassword }: resetPasswordBody = req.body;
-    if (!token || !newPassword) {
-        throw new ApiError(400, "Token and new password are required");
+    const { email, otp, newPassword }: resetPasswordBody = req.body;
+    if (!email || !otp || !newPassword) {
+        throw new ApiError(400, "Email, OTP and new password are required");
     }
     if (newPassword.length < 8) {
         throw new ApiError(400, "Password must be at least 8 characters long");
     }
 
-    try {
-        const decoded = verifyToken(token);
-        if (!decoded) {
-            throw new ApiError(401, "Invalid token");
-        }
-        const user = await prisma.user.findUnique({
-            where: {
-                id: decoded.id
+    // Find valid password reset request
+    const passwordReset = await (prisma as any).passwordReset.findFirst({
+        where: {
+            email,
+            otp,
+            used: false,
+            expiresAt: {
+                gt: new Date()
             }
-        })
-        if (!user) {
-            throw new ApiError(404, "User not found");
         }
+    });
 
-        const hashedPassword = await hashPassword(newPassword);
-        await prisma.user.update({
-            where: {
-                id: decoded.id
-            },
+    if (!passwordReset) {
+        throw new ApiError(400, "Invalid or expired OTP");
+    }
+
+    // Find user
+    const user = await prisma.user.findUnique({
+        where: { email }
+    });
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+
+    // Hash new password and update user
+    const hashedPassword = await hashPassword(newPassword);
+    await prisma.$transaction(async (tx) => {
+        // Update user password
+        await tx.user.update({
+            where: { id: user.id },
             data: {
                 password: hashedPassword,
                 tokenVersion: { increment: 1 }
             }
-        })
+        });
 
+        // Mark OTP as used
+        await (tx as any).passwordReset.update({
+            where: { id: passwordReset.id },
+            data: { used: true }
+        });
 
-        res.status(200).json(new ApiResponse(200, {}, "Password reset successfully"))
+        // Delete all refresh tokens for this user
+        await tx.refreshToken.deleteMany({
+            where: { userId: user.id }
+        });
+    });
 
-    } catch (error) {
-        return res.status(400).json({ message: "Invalid or expired token" });
-    }
-})
+    res.status(200).json(new ApiResponse(200, {}, "Password reset successfully"));
+});
 
 // get current user with profile
 const getCurrentUser = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -406,6 +466,7 @@ export {
     logout,
     changePassword,
     forgotPassword,
+    verifyResetOTP,
     resetPassword,
     refreshAccessToken,
     getCurrentUser,

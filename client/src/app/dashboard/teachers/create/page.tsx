@@ -12,7 +12,6 @@ import toast from 'react-hot-toast';
 const teacherSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
   phone: z.string().optional(),
   employeeId: z.string().optional(),
   designation: z.string().optional(),
@@ -49,7 +48,7 @@ export default function CreateTeacherPage() {
         ...data,
         role: 'TEACHER'
       });
-      toast.success('Teacher created successfully');
+      toast.success('Teacher created successfully. Login credentials sent to email.');
       router.push('/dashboard/teachers');
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to create teacher');
@@ -110,20 +109,7 @@ export default function CreateTeacherPage() {
               )}
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Password *
-              </label>
-              <input
-                {...register('password')}
-                type="password"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter password"
-              />
-              {errors.password && (
-                <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
-              )}
-            </div>
+
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">

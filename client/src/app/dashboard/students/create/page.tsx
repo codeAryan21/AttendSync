@@ -12,11 +12,10 @@ import toast from 'react-hot-toast';
 const studentSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
   phone: z.string().optional(),
   address: z.string().optional(),
   dateOfBirth: z.string().optional(),
-  gender: z.enum(['MALE', 'FEMALE', 'OTHER']).optional(),
+  gender: z.enum(['Male', 'Female', 'Other']).optional(),
   rollNo: z.string().min(1, 'Roll number is required'),
   parentName: z.string().optional(),
   parentPhone: z.string().optional(),
@@ -65,22 +64,24 @@ export default function CreateStudentPage() {
 
   const onSubmit = async (data: StudentForm) => {
     setLoading(true);
+    
+    const payload = {
+      name: data.name,
+      email: data.email,
+      phone: data.phone,
+      address: data.address,
+      role: 'STUDENT',
+      rollNo: data.rollNo,
+      classId: data.classId,
+      parentName: data.parentName,
+      parentPhone: data.parentPhone,
+      dateOfBirth: data.dateOfBirth,
+      gender: data.gender,
+    };
+    
     try {
-      await api.post('/admin/users', {
-        name: data.name,
-        email: data.email,
-        password: data.password,
-        phone: data.phone,
-        address: data.address,
-        role: 'STUDENT',
-        rollNo: data.rollNo,
-        classId: data.classId,
-        parentName: data.parentName,
-        parentPhone: data.parentPhone,
-        dateOfBirth: data.dateOfBirth,
-        gender: data.gender,
-      });
-      toast.success('Student created successfully');
+      await api.post('/admin/users', payload);
+      toast.success('Student created successfully. Login credentials sent to email.');
       router.push('/dashboard/students');
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to create student');
@@ -149,20 +150,7 @@ export default function CreateStudentPage() {
                 )}
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Password *
-                </label>
-                <input
-                  {...register('password')}
-                  type="password"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  placeholder="Enter password"
-                />
-                {errors.password && (
-                  <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
-                )}
-              </div>
+
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -196,9 +184,9 @@ export default function CreateStudentPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                 >
                   <option value="">Select gender</option>
-                  <option value="MALE">Male</option>
-                  <option value="FEMALE">Female</option>
-                  <option value="OTHER">Other</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
                 </select>
               </div>
 

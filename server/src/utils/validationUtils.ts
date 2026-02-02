@@ -9,6 +9,7 @@ export const validateStudentData = async (rollNo: string, classId: string) => {
     const classExists = await prisma.class.findUnique({
         where: { id: classId }
     });
+    
     if (!classExists) {
         throw new ApiError(400, "Invalid class ID");
     }
@@ -16,6 +17,7 @@ export const validateStudentData = async (rollNo: string, classId: string) => {
     const existingStudent = await prisma.student.findFirst({
         where: { rollNo, classId }
     });
+    
     if (existingStudent) {
         throw new ApiError(400, "Roll number already exists in this class");
     }
