@@ -102,15 +102,6 @@ export default function SettingsPage() {
     }
   };
 
-  const testEmailSettings = async () => {
-    try {
-      await api.post('/admin/settings/test-email');
-      toast.success('Test email sent successfully');
-    } catch (error) {
-      toast.error('Failed to send test email');
-    }
-  };
-
   const createBackup = async () => {
     try {
       const response = await api.post('/admin/backup', {}, { responseType: 'blob' });
@@ -325,21 +316,15 @@ export default function SettingsPage() {
 
           {activeTab === 'notifications' && (
             <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-gray-900">Notification Settings</h3>
-                <button
-                  onClick={testEmailSettings}
-                  className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors"
-                >
-                  Test Email
-                </button>
-              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Notification Settings</h3>
               
               <div className="space-y-4">
                 <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                   <div>
                     <h4 className="text-sm font-medium text-gray-900">Email Notifications</h4>
                     <p className="text-sm text-gray-500">Send attendance reports and alerts via email</p>
+                    <p className="text-xs text-gray-400 mt-1">• Absent students receive immediate alerts when marked absent</p>
+                    <p className="text-xs text-gray-400">• Teachers receive daily attendance reports at 7 PM</p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input
@@ -366,6 +351,15 @@ export default function SettingsPage() {
                     />
                     <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                   </label>
+                </div>
+
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h4 className="text-sm font-medium text-blue-900 mb-2">📧 Email Notification Schedule</h4>
+                  <div className="text-sm text-blue-800 space-y-1">
+                    <p><strong>Immediate:</strong> Absent notifications sent when student is marked absent</p>
+                    <p><strong>6:00 PM:</strong> Daily absent notifications for all students marked absent today</p>
+                    <p><strong>7:00 PM:</strong> Daily attendance reports sent to teachers</p>
+                  </div>
                 </div>
               </div>
             </div>

@@ -41,7 +41,7 @@ interface StudentProfile {
       name: string;
       email: string;
     };
-  };
+  } | null;
   attendanceStats?: {
     totalClasses: number;
     totalPresent: number;
@@ -87,23 +87,29 @@ export default function StudentProfilePage() {
     const info: {dateOfBirth?: string; gender?: string; address?: string} = {};
     if (!address) return info;
     
-    const parts = address.split(' | ');
-    if (parts.length > 1) {
-      info.address = parts[0];
-      const additionalPart = parts[1];
-      const dobMatch = additionalPart.match(/DOB: ([^,]+)/);
-      const genderMatch = additionalPart.match(/Gender: ([^,]+)/);
-      if (dobMatch) info.dateOfBirth = dobMatch[1];
-      if (genderMatch) info.gender = genderMatch[1];
-    } else {
-      const dobMatch = address.match(/DOB: ([^,]+)/);
-      const genderMatch = address.match(/Gender: ([^,]+)/);
-      if (dobMatch || genderMatch) {
+    // Check if address contains additional info markers (DOB or Gender)
+    const hasDOB = address.includes('DOB:');
+    const hasGender = address.includes('Gender:');
+    
+    if (hasDOB || hasGender) {
+      // Address contains additional info
+      const parts = address.split(' | ');
+      if (parts.length > 1) {
+        info.address = parts[0];
+        const additionalPart = parts[1];
+        const dobMatch = additionalPart.match(/DOB: ([^,]+)/);
+        const genderMatch = additionalPart.match(/Gender: ([^,]+)/);
         if (dobMatch) info.dateOfBirth = dobMatch[1];
         if (genderMatch) info.gender = genderMatch[1];
       } else {
-        info.address = address;
+        const dobMatch = address.match(/DOB: ([^,]+)/);
+        const genderMatch = address.match(/Gender: ([^,]+)/);
+        if (dobMatch) info.dateOfBirth = dobMatch[1];
+        if (genderMatch) info.gender = genderMatch[1];
       }
+    } else {
+      // Plain address without additional info
+      info.address = address;
     }
     return info;
   };
@@ -137,12 +143,19 @@ export default function StudentProfilePage() {
             phone: userData.phone,
             address: userData.address
           },
-          class: userData.studentProfile?.class || null,
+          class: userData.studentProfile?.class ? {
+            id: userData.studentProfile.class.id,
+            name: userData.studentProfile.class.name,
+            section: userData.studentProfile.class.section,
+            subjects: userData.studentProfile.class.subjects,
+            teacher: userData.studentProfile.class.teacher
+          } : null,
           attendanceStats: userData.attendanceStats
         };
         
         setStudent(transformedStudent);
-        setAdditionalInfo(parseAdditionalInfo(userData.address || ''));
+        const addressToUse = userData.studentProfile?.address || userData.address || '';
+        setAdditionalInfo(parseAdditionalInfo(addressToUse));
       } else {
         // For teachers, find student in their classes
         const classesResponse = await api.get('/class');
@@ -168,9 +181,16 @@ export default function StudentProfilePage() {
             parentPhone: foundStudent.parentPhone,
             admissionDate: foundStudent.createdAt,
             user: foundStudent.user,
-            class: foundStudent.class
+            class: foundStudent.class ? {
+              id: foundStudent.class.id,
+              name: foundStudent.class.name,
+              section: foundStudent.class.section,
+              subjects: foundStudent.class.subjects,
+              teacher: foundStudent.class.teacher
+            } : null
           });
-          setAdditionalInfo(parseAdditionalInfo(foundStudent.user.address || ''));
+          const addressToUse = foundStudent.address || foundStudent.user.address || '';
+          setAdditionalInfo(parseAdditionalInfo(addressToUse));
         } else {
           toast.error('Student not found in your assigned classes');
           router.push('/dashboard/students');
@@ -205,23 +225,31 @@ export default function StudentProfilePage() {
 
   const onSubmit = async () => {
     try {
-      await api.put(`/admin/users/${student?.user.id}`, {
+      const updateData: any = {
         name: editForm.name,
         email: editForm.email,
-        phone: editForm.phone,
-        address: editForm.address,
-        dateOfBirth: editForm.dateOfBirth,
-        gender: editForm.gender,
+        phone: editForm.phone || null,
+        address: editForm.address || null,
         rollNo: editForm.rollNo,
         classId: editForm.classId,
-        parentName: editForm.parentName,
-        parentPhone: editForm.parentPhone,
-      });
+        parentName: editForm.parentName || null,
+        parentPhone: editForm.parentPhone || null,
+      };
+      
+      if (editForm.dateOfBirth) {
+        updateData.dateOfBirth = editForm.dateOfBirth;
+      }
+      
+      if (editForm.gender) {
+        updateData.gender = editForm.gender;
+      }
+      
+      await api.put(`/admin/users/${student?.user.id}`, updateData);
       toast.success('Student updated successfully');
       setIsEditing(false);
       fetchStudentProfile();
     } catch (error: any) {
-      toast.error('Failed to update student');
+      toast.error(error.response?.data?.message || 'Failed to update student');
     }
   };
 

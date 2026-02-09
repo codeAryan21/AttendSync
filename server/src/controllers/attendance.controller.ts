@@ -5,7 +5,6 @@ import { Request, Response } from "express";
 import { AuthRequest } from "../middlewares/auth.middleware";
 import prisma from "../db/db";
 import { AttendanceStatus } from "@prisma/client";
-
 interface markAttendanceBody {
     studentId: string;
     classId: string;
@@ -76,6 +75,40 @@ const markAttendance = asyncHandler(async (req: AuthRequest, res: Response) => {
             status
         }
     });
+
+    // Send notification if student is marked absent
+    if (status === AttendanceStatus.ABSENT) {
+        setImmediate(async () => {
+            try {
+                const studentData = await prisma.student.findUnique({
+                    where: { id: studentId },
+                    include: {
+                        user: true,
+                        class: {
+                            include: {
+                                teacher: true
+                            }
+                        }
+                    }
+                });
+
+                if (studentData?.user && studentData.class.teacher) {
+                    const { sendAbsentNotification } = await import('../services/email.service');
+                    await sendAbsentNotification(
+                        studentData.user.email,
+                        studentData.user.name,
+                        `${studentData.class.name} - ${studentData.class.section}`,
+                        parsedDate.toDateString(),
+                        studentData.class.teacher.name,
+                        studentData.class.teacher.email
+                    );
+                }
+            } catch (error) {
+                console.error('Failed to send absent notification:', error);
+            }
+        });
+    }
+
     res.status(201).json(new ApiResponse(201, attendance, "Attendance marked successfully"));
 })
 
@@ -120,15 +153,50 @@ const toggleAttendance = asyncHandler(async (req: AuthRequest, res: Response) =>
 
     // If attendance exists → toggle
     if (attendanceExist) {
+        const newStatus = attendanceExist.status === AttendanceStatus.PRESENT ? AttendanceStatus.ABSENT : AttendanceStatus.PRESENT;
         const updateAttendance = await prisma.attendance.update({
             where: {
                 id: attendanceExist.id
             },
             data: {
-                status: attendanceExist.status === AttendanceStatus.PRESENT ? AttendanceStatus.ABSENT : AttendanceStatus.PRESENT,
+                status: newStatus,
                 teacherId
             }
-        })
+        });
+
+        // Send notification if toggled to absent
+        if (newStatus === AttendanceStatus.ABSENT) {
+            setImmediate(async () => {
+                try {
+                    const studentData = await prisma.student.findUnique({
+                        where: { id: studentId },
+                        include: {
+                            user: true,
+                            class: {
+                                include: {
+                                    teacher: true
+                                }
+                            }
+                        }
+                    });
+
+                    if (studentData?.user && studentData.class.teacher) {
+                        const { sendAbsentNotification } = await import('../services/email.service');
+                        await sendAbsentNotification(
+                            studentData.user.email,
+                            studentData.user.name,
+                            `${studentData.class.name} - ${studentData.class.section}`,
+                            parsedDate.toDateString(),
+                            studentData.class.teacher.name,
+                            studentData.class.teacher.email
+                        );
+                    }
+                } catch (error) {
+                    console.error('Failed to send absent notification:', error);
+                }
+            });
+        }
+
         return res.status(201).json(new ApiResponse(201, updateAttendance, "Attendance marked successfully"));
     }
 
@@ -156,8 +224,26 @@ const getAttendanceByClassAndDate = asyncHandler(async (req: AuthRequest, res: R
             classId: classId as string,
             date: new Date(date as string)
         },
-        include: {
-            student: true
+        select: {
+            id: true,
+            studentId: true,
+            classId: true,
+            date: true,
+            status: true,
+            updatedAt: true,
+            student: {
+                select: {
+                    id: true,
+                    rollNo: true,
+                    user: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true
+                        }
+                    }
+                }
+            }
         }
     });
     if (!attendance) {
@@ -197,6 +283,43 @@ const bulkSyncAttendance = asyncHandler(async (req: AuthRequest, res: Response) 
     }));
 
     await prisma.$transaction(operations);
+    
+    // Send email notifications for absent students
+    const absentRecords = records.filter((r: any) => r.status === AttendanceStatus.ABSENT);
+    if (absentRecords.length > 0) {
+        setImmediate(async () => {
+            for (const record of absentRecords) {
+                try {
+                    const studentData = await prisma.student.findUnique({
+                        where: { id: record.studentId },
+                        include: {
+                            user: true,
+                            class: {
+                                include: {
+                                    teacher: true
+                                }
+                            }
+                        }
+                    });
+
+                    if (studentData?.user && studentData.class.teacher) {
+                        const { sendAbsentNotification } = await import('../services/email.service');
+                        await sendAbsentNotification(
+                            studentData.user.email,
+                            studentData.user.name,
+                            `${studentData.class.name} - ${studentData.class.section}`,
+                            new Date(record.date).toDateString(),
+                            studentData.class.teacher.name,
+                            studentData.class.teacher.email
+                        );
+                    }
+                } catch (error) {
+                    console.error('Failed to send notification:', error);
+                }
+            }
+        });
+    }
+    
     const syncedCount = await prisma.attendance.count({
         where: {
             teacherId,

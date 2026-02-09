@@ -63,6 +63,7 @@ interface AttendanceRecord {
   date: string;
   status: 'PRESENT' | 'ABSENT';
   student?: Student;
+  updatedAt?: string;
 }
 
 export default function TeacherAttendancePage() {
@@ -71,14 +72,10 @@ export default function TeacherAttendancePage() {
   const router = useRouter();
   const [classes, setClasses] = useState<Class[]>([]);
   const [selectedClass, setSelectedClass] = useState<string>('');
-  const [selectedDate, setSelectedDate] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('selectedDate') || new Date().toISOString().split('T')[0];
-    }
-    return new Date().toISOString().split('T')[0];
-  });
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [students, setStudents] = useState<Student[]>([]);
   const [attendance, setAttendance] = useState<Record<string, 'PRESENT' | 'ABSENT'>>({});
+  const [attendanceTimestamps, setAttendanceTimestamps] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<StudentProfile | null>(null);
   const [studentLoading, setStudentLoading] = useState(false);
@@ -127,6 +124,7 @@ export default function TeacherAttendancePage() {
       const result = response.data.data;
       
       const attendanceMap: Record<string, 'PRESENT' | 'ABSENT'> = {};
+      const timestampMap: Record<string, string> = {};
       if (result && result.attendance && Array.isArray(result.attendance)) {
         result.attendance
           .filter((record: AttendanceRecord) => {
@@ -135,11 +133,16 @@ export default function TeacherAttendancePage() {
           })
           .forEach((record: AttendanceRecord) => {
             attendanceMap[record.studentId] = record.status;
+            if (record.updatedAt) {
+              timestampMap[record.studentId] = record.updatedAt;
+            }
           });
       }
       setAttendance(attendanceMap);
+      setAttendanceTimestamps(timestampMap);
     } catch (error) {
       setAttendance({});
+      setAttendanceTimestamps({});
     }
   };
 
@@ -286,10 +289,7 @@ export default function TeacherAttendancePage() {
             <input
               type="date"
               value={selectedDate}
-              onChange={(e) => {
-                setSelectedDate(e.target.value);
-                localStorage.setItem('selectedDate', e.target.value);
-              }}
+              onChange={(e) => setSelectedDate(e.target.value)}
               max={new Date().toISOString().split('T')[0]}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
@@ -464,11 +464,12 @@ export default function TeacherAttendancePage() {
                               </span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {status === 'PRESENT' ? new Date().toLocaleTimeString('en-US', { 
-                                hour: '2-digit', 
-                                minute: '2-digit',
-                                hour12: true 
-                              }) : '-'}
+                              {status === 'PRESENT' && attendanceTimestamps[student.id] ? 
+                                new Date(attendanceTimestamps[student.id]).toLocaleTimeString('en-US', { 
+                                  hour: '2-digit', 
+                                  minute: '2-digit',
+                                  hour12: true 
+                                }) : '-'}
                             </td>
                           </tr>
                         );

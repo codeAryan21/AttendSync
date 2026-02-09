@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
@@ -32,48 +32,106 @@ interface Student {
 export default function StudentsPage() {
   const { user, hasAccess } = useRoleAccess(['ADMIN', 'TEACHER']);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const classIdFromUrl = searchParams.get('classId');
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalStudents, setTotalStudents] = useState(0);
+  const studentsPerPage = 10;
 
   useEffect(() => {
     if (hasAccess) {
       fetchStudents();
     }
-  }, [hasAccess]);
+  }, [hasAccess, currentPage, searchTerm]);
 
   const fetchStudents = async () => {
+    setLoading(true);
     try {
       if (user?.role === 'TEACHER') {
-        // For teachers, get students from their assigned classes
-        const classesResponse = await api.get('/class');
-        const teacherClasses = classesResponse.data.data || [];
-        
-        let allStudents: Student[] = [];
-        for (const cls of teacherClasses) {
+        // If classId is provided, fetch only that class's students
+        if (classIdFromUrl) {
           try {
-            const studentsResponse = await api.get(`/student/class/${cls.id}`);
+            const studentsResponse = await api.get(`/student/class/${classIdFromUrl}`);
             const classStudents = studentsResponse.data.data.students || [];
-            allStudents = [...allStudents, ...classStudents];
+            
+            // Apply search filter
+            const filteredStudents = searchTerm 
+              ? classStudents.filter((student: Student) =>
+                  student.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  student.rollNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  student.user?.email?.toLowerCase().includes(searchTerm.toLowerCase())
+                )
+              : classStudents;
+            
+            // Apply pagination
+            const startIndex = (currentPage - 1) * studentsPerPage;
+            const endIndex = startIndex + studentsPerPage;
+            const paginatedStudents = filteredStudents.slice(startIndex, endIndex);
+            
+            setStudents(paginatedStudents);
+            setTotalStudents(filteredStudents.length);
+            setTotalPages(Math.ceil(filteredStudents.length / studentsPerPage));
           } catch (error) {
-            console.error(`Failed to fetch students for class ${cls.id}`);
+            toast.error('Failed to fetch students for this class');
           }
+        } else {
+          // For teachers, get students from all their assigned classes
+          const classesResponse = await api.get('/class');
+          const teacherClasses = classesResponse.data.data || [];
+          
+          let allStudents: Student[] = [];
+          for (const cls of teacherClasses) {
+            try {
+              const studentsResponse = await api.get(`/student/class/${cls.id}`);
+              const classStudents = studentsResponse.data.data.students || [];
+              allStudents = [...allStudents, ...classStudents];
+            } catch (error) {
+              console.error(`Failed to fetch students for class ${cls.id}`);
+            }
+          }
+          
+          // Remove duplicates based on student ID
+          const uniqueStudents = allStudents.filter((student, index, self) => 
+            index === self.findIndex(s => s.id === student.id)
+          );
+          
+          // Apply search filter for teachers
+          const filteredStudents = searchTerm 
+            ? uniqueStudents.filter(student =>
+                student.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                student.rollNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                student.user?.email?.toLowerCase().includes(searchTerm.toLowerCase())
+              )
+            : uniqueStudents;
+          
+          // Apply pagination for teachers
+          const startIndex = (currentPage - 1) * studentsPerPage;
+          const endIndex = startIndex + studentsPerPage;
+          const paginatedStudents = filteredStudents.slice(startIndex, endIndex);
+          
+          setStudents(paginatedStudents);
+          setTotalStudents(filteredStudents.length);
+          setTotalPages(Math.ceil(filteredStudents.length / studentsPerPage));
         }
-        
-        // Remove duplicates based on student ID
-        const uniqueStudents = allStudents.filter((student, index, self) => 
-          index === self.findIndex(s => s.id === student.id)
-        );
-        
-        setStudents(uniqueStudents);
       } else {
-        // For admins, get all students
-        const response = await api.get('/admin/users?role=STUDENT');
-        const studentUsers = response.data.data.users || [];
+        // For admins, use backend pagination and search
+        const params = new URLSearchParams({
+          role: 'STUDENT',
+          page: currentPage.toString(),
+          limit: studentsPerPage.toString(),
+          ...(searchTerm && { search: searchTerm })
+        });
         
-        const transformedStudents = studentUsers.map((user: any) => ({
+        const response = await api.get(`/admin/users?${params}`);
+        const { users, pagination } = response.data.data;
+        
+        const transformedStudents = users.map((user: any) => ({
           id: user.studentProfile?.id || user.id,
           rollNo: user.studentProfile?.rollNo || 'N/A',
           user: {
@@ -88,6 +146,9 @@ export default function StudentsPage() {
         }));
         
         setStudents(transformedStudents);
+        setTotalStudents(pagination.total);
+        setTotalPages(pagination.pages);
+        setCurrentPage(pagination.page);
       }
     } catch (error: any) {
       toast.error('Failed to fetch students');
@@ -96,11 +157,12 @@ export default function StudentsPage() {
     }
   };
 
-  const filteredStudents = students.filter(student =>
-    student.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.rollNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    student.user?.email?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Reset to first page when search term changes
+  useEffect(() => {
+    if (currentPage !== 1) {
+      setCurrentPage(1);
+    }
+  }, [searchTerm]);
 
   const handleDeleteStudent = async () => {
     if (!selectedStudent) return;
@@ -124,8 +186,27 @@ export default function StudentsPage() {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center space-x-4">
+          {classIdFromUrl && (
+            <button
+              onClick={() => router.push('/dashboard/classes')}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+          )}
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">
+              {classIdFromUrl ? 'Class Students' : 'Students'}
+            </h1>
+          </div>
+        </div>
+      </div>
       <PageHeader
-        title="Students"
+        title=""
         entityName="Student"
         createPath="/dashboard/students/create"
         searchTerm={searchTerm}
@@ -137,13 +218,13 @@ export default function StudentsPage() {
       <div className="bg-white shadow rounded-lg">
         <div className="px-6 py-4 border-b border-gray-200">
           <h2 className="text-lg font-medium text-gray-900">
-            {user?.role === 'ADMIN' ? 'All Students' : 'My Students'} ({filteredStudents.length})
+            {user?.role === 'ADMIN' ? 'All Students' : 'My Students'} ({totalStudents})
           </h2>
         </div>
         
         {loading ? (
           <LoadingSpinner color="purple" />
-        ) : filteredStudents.length > 0 ? (
+        ) : students.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -166,7 +247,7 @@ export default function StudentsPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredStudents.map((student) => (
+                {students.map((student) => (
                   <tr key={student.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -238,6 +319,53 @@ export default function StudentsPage() {
             <p className="mt-1 text-sm text-gray-500">
               {searchTerm ? 'No students match your search criteria.' : 'No students have been added yet.'}
             </p>
+          </div>
+        )}
+        
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="px-6 py-4 border-t border-gray-200">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-gray-700">
+                Showing {((currentPage - 1) * studentsPerPage) + 1} to {Math.min(currentPage * studentsPerPage, totalStudents)} of {totalStudents} students
+              </div>
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1 text-sm border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 text-gray-700"
+                >
+                  Previous
+                </button>
+                
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  const startPage = Math.max(1, currentPage - 2);
+                  const pageNum = startPage + i;
+                  if (pageNum > totalPages) return null;
+                  return (
+                    <button
+                      key={`page-${pageNum}`}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`px-3 py-1 text-sm border rounded-md ${
+                        currentPage === pageNum
+                          ? 'bg-purple-600 text-white border-purple-600'
+                          : 'hover:bg-gray-50 text-gray-700 border-gray-300'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                }).filter(Boolean)}
+                
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1 text-sm border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 text-gray-700"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

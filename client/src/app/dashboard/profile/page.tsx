@@ -2,7 +2,6 @@
 
 import { useAuthStore } from '@/store/authStore';
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
 
@@ -62,6 +61,9 @@ function LegacyProfilePage() {
   const [myClasses, setMyClasses] = useState<ClassInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
+  
+  // Only admin can edit profiles
+  const canEdit = user?.role === 'ADMIN';
 
   useEffect(() => {
     if (user) {
@@ -93,22 +95,36 @@ function LegacyProfilePage() {
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Only admin can update profiles
+    if (user?.role !== 'ADMIN') {
+      toast.error('Only admin can edit profiles. Please contact admin.');
+      return;
+    }
+    
     setLoading(true);
 
     try {
-      if (user?.role === 'STUDENT') {
-        await api.put('/student/profile', profileData);
-      } else if (user?.role === 'TEACHER') {
-        await api.put('/teacher/profile', profileData);
-      } else if (user?.role === 'ADMIN') {
-        await api.put(`/admin/users/${user?.id}`, profileData);
+      if (user?.role === 'ADMIN') {
+        // For admin users, only send the fields that are allowed to be updated
+        const adminUpdateData = {
+          name: profileData.name,
+          phone: profileData.phone,
+          address: profileData.address,
+          designation: profileData.designation,
+          qualification: profileData.qualification,
+          experience: profileData.experience || 0,
+          specialization: profileData.specialization
+        };
+        await api.put(`/admin/users/${user?.id}`, adminUpdateData);
       }
       
       toast.success('Profile updated successfully');
       setEditing(false);
       getCurrentUser();
     } catch (error: any) {
-      toast.error('Failed to update profile');
+      console.error('Profile update error:', error.response?.data);
+      toast.error(error.response?.data?.message || 'Failed to update profile');
     } finally {
       setLoading(false);
     }
@@ -147,32 +163,34 @@ function LegacyProfilePage() {
             <div className="px-6 py-4 border-b border-gray-200">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-medium text-gray-900">Personal Information</h2>
-                <div className="flex space-x-3">
-                  {editing ? (
-                    <>
+                {canEdit && (
+                  <div className="flex space-x-3">
+                    {editing ? (
+                      <>
+                        <button
+                          onClick={() => setEditing(false)}
+                          className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleUpdateProfile}
+                          disabled={loading}
+                          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          {loading ? 'Saving...' : 'Save Changes'}
+                        </button>
+                      </>
+                    ) : (
                       <button
-                        onClick={() => setEditing(false)}
-                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                        onClick={() => setEditing(true)}
+                        className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
                       >
-                        Cancel
+                        Edit Profile
                       </button>
-                      <button
-                        onClick={handleUpdateProfile}
-                        disabled={loading}
-                        className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
-                      >
-                        {loading ? 'Saving...' : 'Save Changes'}
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={() => setEditing(true)}
-                      className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
-                    >
-                      Edit Profile
-                    </button>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -184,7 +202,7 @@ function LegacyProfilePage() {
                     type="text"
                     value={profileData.name}
                     onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
-                    disabled={!editing}
+                    disabled={!canEdit || !editing}
                     className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
                   />
                 </div>
@@ -195,7 +213,7 @@ function LegacyProfilePage() {
                     type="email"
                     value={profileData.email}
                     onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
-                    disabled={!editing}
+                    disabled={!canEdit || !editing}
                     className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
                   />
                 </div>
@@ -206,7 +224,7 @@ function LegacyProfilePage() {
                     type="tel"
                     value={profileData.phone}
                     onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
-                    disabled={!editing}
+                    disabled={!canEdit || !editing}
                     className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
                   />
                 </div>
@@ -221,7 +239,7 @@ function LegacyProfilePage() {
                   />
                 </div>
 
-                {/* Teacher-specific fields */}
+                {/* Teacher-specific fields - Read only for teachers */}
                 {user.role === 'TEACHER' && (
                   <>
                     <div>
@@ -229,10 +247,9 @@ function LegacyProfilePage() {
                       <input
                         type="text"
                         value={profileData.qualification}
-                        onChange={(e) => setProfileData({ ...profileData, qualification: e.target.value })}
-                        disabled={!editing}
+                        disabled
                         placeholder="e.g., M.Sc. Mathematics, B.Tech CSE"
-                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
+                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-50 text-gray-500"
                       />
                     </div>
 
@@ -241,10 +258,9 @@ function LegacyProfilePage() {
                       <input
                         type="number"
                         value={profileData.experience}
-                        onChange={(e) => setProfileData({ ...profileData, experience: parseInt(e.target.value) || 0 })}
-                        disabled={!editing}
+                        disabled
                         min="0"
-                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
+                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-50 text-gray-500"
                       />
                     </div>
 
@@ -253,10 +269,9 @@ function LegacyProfilePage() {
                       <input
                         type="text"
                         value={profileData.specialization}
-                        onChange={(e) => setProfileData({ ...profileData, specialization: e.target.value })}
-                        disabled={!editing}
+                        disabled
                         placeholder="e.g., Mathematics, Physics, Computer Science"
-                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
+                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-50 text-gray-500"
                       />
                     </div>
 
@@ -265,40 +280,24 @@ function LegacyProfilePage() {
                       <input
                         type="text"
                         value={profileData.designation}
-                        onChange={(e) => setProfileData({ ...profileData, designation: e.target.value })}
-                        disabled={!editing}
+                        disabled
                         placeholder="e.g., Senior Teacher, Assistant Professor"
-                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
+                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 bg-gray-50 text-gray-500"
                       />
                     </div>
                   </>
                 )}
 
-                {user.role !== 'TEACHER' && (
-                  <div className="sm:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700">Address</label>
-                    <textarea
-                      value={profileData.address}
-                      onChange={(e) => setProfileData({ ...profileData, address: e.target.value })}
-                      disabled={!editing}
-                      rows={3}
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
-                    />
-                  </div>
-                )}
-
-                {user.role === 'TEACHER' && (
-                  <div className="sm:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700">Address</label>
-                    <textarea
-                      value={profileData.address}
-                      onChange={(e) => setProfileData({ ...profileData, address: e.target.value })}
-                      disabled={!editing}
-                      rows={3}
-                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
-                    />
-                  </div>
-                )}
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700">Address</label>
+                  <textarea
+                    value={profileData.address}
+                    onChange={(e) => setProfileData({ ...profileData, address: e.target.value })}
+                    disabled={!canEdit || !editing}
+                    rows={3}
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-50 disabled:text-gray-500"
+                  />
+                </div>
 
                 {/* Student-specific information */}
                 {user.role === 'STUDENT' && user.studentProfile && (
@@ -430,8 +429,9 @@ function LegacyProfilePage() {
     </div>
   );
 }
+
+// Student Profile that was shown on the student dashboard
 function EnhancedStudentProfile() {
-  const { user } = useAuthStore();
   const [profile, setProfile] = useState<any>(null);
   const [attendanceStats, setAttendanceStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);

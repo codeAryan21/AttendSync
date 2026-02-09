@@ -605,7 +605,7 @@ function EnhancedStudentDashboard() {
           </div>
           <div className="flex-1">
             <h2 className="text-2xl font-bold text-gray-900">{user?.name}</h2>
-            <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
                 <span className="text-gray-600 text-xs block mb-1">Roll Number</span>
                 <p className="font-semibold text-blue-600">{profile?.rollNo || 'N/A'}</p>
@@ -615,12 +615,14 @@ function EnhancedStudentDashboard() {
                 <p className="font-semibold text-green-600">{profile?.class?.name || 'N/A'} - {profile?.class?.section || ''}</p>
               </div>
               <div>
-                <span className="text-gray-600 text-xs block mb-1">Email</span>
-                <p className="font-medium text-gray-900 text-sm">{user?.email}</p>
-              </div>
-              <div>
                 <span className="text-gray-600 text-xs block mb-1">Phone</span>
                 <p className="font-medium text-gray-900 text-sm">{profile?.user?.phone || 'N/A'}</p>
+              </div>
+            </div>
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <span className="text-gray-600 text-xs block mb-1">Email</span>
+                <p className="font-medium text-gray-900 text-sm break-words">{user?.email}</p>
               </div>
               <div>
                 <span className="text-gray-600 text-xs block mb-1">Date of Birth</span>

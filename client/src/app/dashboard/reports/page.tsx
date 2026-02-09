@@ -272,7 +272,7 @@ function LegacyReportsPage() {
     );
   }
 
-  // Admin Dashboard
+  // Report section for the Admin Dashboard
   if (user.role === 'ADMIN') {
     return (
       <div className="space-y-6">
@@ -483,7 +483,7 @@ function LegacyReportsPage() {
     );
   }
 
-  // Teacher Dashboard
+  // Reports section for the Teacher Dashboard
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">

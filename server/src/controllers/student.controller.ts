@@ -53,9 +53,16 @@ const getStudentsByClass = asyncHandler(async (req: AuthRequest, res: Response) 
                 },
                 class: {
                     select: {
+                        id: true,
                         name: true,
                         section: true,
-                        subjects: true
+                        subjects: true,
+                        teacher: {
+                            select: {
+                                name: true,
+                                email: true
+                            }
+                        }
                     }
                 }
             },

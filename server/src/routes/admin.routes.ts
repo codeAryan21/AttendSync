@@ -19,7 +19,9 @@ import {
     updateSettings,
     testEmailSettings,
     createBackup,
-    updateTeacherClasses
+    updateTeacherClasses,
+    transferTeacher,
+    getAvailableClasses
 } from "../controllers/admin.controller";
 
 const router = Router();
@@ -35,6 +37,7 @@ router.delete("/users/:id", authMiddleware, requireAdmin, validateParams(idSchem
 // System routes
 router.get("/stats", authMiddleware, requireAdmin, getSystemStats);
 router.get("/classes", authMiddleware, requireAdmin, getAllClasses);
+router.get("/classes/available", authMiddleware, requireAdmin, getAvailableClasses);
 router.get("/classes/:id", authMiddleware, requireAdmin, validateParams(idSchema), getClassById);
 router.get("/reports", authMiddleware, requireAdmin, getReports);
 router.get("/reports/overall", authMiddleware, requireAdmin, getOverallReport);

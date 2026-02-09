@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
+import TeacherClassAssignment from '@/components/TeacherClassAssignment';
 
 interface Teacher {
   id: string;
@@ -36,6 +37,7 @@ export default function TeachersPage() {
   const [showViewModal, setShowViewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showAssignmentModal, setShowAssignmentModal] = useState(false);
   const [availableClasses, setAvailableClasses] = useState<any[]>([]);
   const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
   const [editForm, setEditForm] = useState({ 
@@ -134,7 +136,7 @@ export default function TeachersPage() {
     }
   };
 
-  const openEditModal = (teacher: Teacher) => {
+  const openEditModal = async (teacher: Teacher) => {
     setSelectedTeacher(teacher);
     setEditForm({
       name: teacher.name,
@@ -146,15 +148,47 @@ export default function TeachersPage() {
       experience: teacher.experience?.toString() || '',
       specialization: teacher.specialization || ''
     });
-    setSelectedClasses(teacher.assignedClasses.map(cls => cls.id));
-    fetchAvailableClasses();
+    
+    // Fetch current class assignments for this teacher
+    try {
+      const response = await api.get(`/admin/classes/available?teacherId=${teacher.id}`);
+      const data = response.data.data;
+      
+      // Set currently assigned classes
+      const assignedClassIds = (data.assignedClasses || []).map((cls: any) => cls.id);
+      setSelectedClasses(assignedClassIds);
+      
+      // Combine all classes for selection
+      const allClasses = [
+        ...(data.availableClasses || []),
+        ...(data.assignedClasses || []),
+        ...(data.otherAssignedClasses || [])
+      ];
+      
+      setAvailableClasses(allClasses);
+    } catch (error) {
+      console.error('Failed to fetch teacher classes:', error);
+      setSelectedClasses(teacher.assignedClasses.map(cls => cls.id));
+    }
+    
     setShowEditModal(true);
   };
 
   const fetchAvailableClasses = async () => {
+    if (!selectedTeacher) return;
+    
     try {
-      const response = await api.get('/admin/classes');
-      setAvailableClasses(response.data.data || []);
+      const response = await api.get(`/admin/classes/available?teacherId=${selectedTeacher.id}`);
+      const data = response.data.data;
+      
+      // Combine all classes for selection
+      const allClasses = [
+        ...(data.availableClasses || []),
+        ...(data.assignedClasses || []),
+        ...(data.otherAssignedClasses || [])
+      ];
+      
+      setAvailableClasses(allClasses);
     } catch (error) {
       console.error('Failed to fetch classes');
     }
@@ -297,6 +331,12 @@ export default function TeachersPage() {
                     className="flex-1 px-3 py-2 text-xs font-medium text-blue-700 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors"
                   >
                     Edit
+                  </button>
+                  <button 
+                    onClick={() => { setSelectedTeacher(teacher); setShowAssignmentModal(true); }}
+                    className="flex-1 px-3 py-2 text-xs font-medium text-purple-700 bg-purple-50 rounded-md hover:bg-purple-100 transition-colors"
+                  >
+                    Classes
                   </button>
                   <button 
                     onClick={() => { setSelectedTeacher(teacher); setShowDeleteModal(true); }}
@@ -577,7 +617,7 @@ export default function TeachersPage() {
                           </div>
                           <div className="flex items-center space-x-2">
                             <span className="text-xs text-emerald-700 bg-emerald-200 px-2 py-1 rounded-full font-medium">
-                              {cls.totalStudents || 0} students
+                              {cls._count?.students || 0} students
                             </span>
                           </div>
                         </div>
@@ -886,6 +926,14 @@ export default function TeachersPage() {
           </div>
         </div>
       )}
+
+      {/* Teacher Class Assignment Modal */}
+      <TeacherClassAssignment
+        isOpen={showAssignmentModal}
+        onClose={() => setShowAssignmentModal(false)}
+        onSuccess={fetchTeachers}
+        selectedTeacher={selectedTeacher || undefined}
+      />
     </div>
   );
 }

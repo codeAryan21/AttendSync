@@ -999,21 +999,126 @@ const updateTeacherClasses = asyncHandler(async (req: AuthRequest, res: Response
         throw new ApiError(400, "User is not a teacher");
     }
     
-    // Update all classes to remove this teacher
-    await prisma.class.updateMany({
-        where: { teacherId: id },
-        data: { teacherId: null }
-    });
-    
-    // Assign new classes to this teacher
+    // Validate that all provided class IDs exist
     if (classIds && classIds.length > 0) {
-        await prisma.class.updateMany({
+        const existingClasses = await prisma.class.findMany({
             where: { id: { in: classIds } },
-            data: { teacherId: id }
+            select: { id: true, name: true }
         });
+        
+        if (existingClasses.length !== classIds.length) {
+            throw new ApiError(400, "One or more classes not found");
+        }
     }
     
+    await prisma.$transaction(async (tx) => {
+        // Remove teacher from all current classes
+        await tx.class.updateMany({
+            where: { teacherId: id },
+            data: { teacherId: null }
+        });
+        
+        // Assign new classes to this teacher
+        if (classIds && classIds.length > 0) {
+            await tx.class.updateMany({
+                where: { id: { in: classIds } },
+                data: { teacherId: id }
+            });
+        }
+    });
+    
     res.status(200).json(new ApiResponse(200, {}, "Teacher class assignments updated successfully"));
+});
+
+// Transfer teacher from one class to another (Admin only)
+const transferTeacher = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { fromClassId, toClassId, teacherId } = req.body;
+    
+    if (!fromClassId || !toClassId || !teacherId) {
+        throw new ApiError(400, "From class, to class, and teacher ID are required");
+    }
+    
+    // Validate teacher exists and is a teacher
+    const teacher = await prisma.user.findUnique({ 
+        where: { id: teacherId, role: 'TEACHER' } 
+    });
+    if (!teacher) {
+        throw new ApiError(404, "Teacher not found");
+    }
+    
+    // Validate both classes exist
+    const [fromClass, toClass] = await Promise.all([
+        prisma.class.findUnique({ where: { id: fromClassId } }),
+        prisma.class.findUnique({ where: { id: toClassId } })
+    ]);
+    
+    if (!fromClass) {
+        throw new ApiError(404, "Source class not found");
+    }
+    if (!toClass) {
+        throw new ApiError(404, "Destination class not found");
+    }
+    
+    // Check if teacher is actually assigned to the from class
+    if (fromClass.teacherId !== teacherId) {
+        throw new ApiError(400, "Teacher is not assigned to the source class");
+    }
+    
+    await prisma.$transaction(async (tx) => {
+        // Remove teacher from source class
+        await tx.class.update({
+            where: { id: fromClassId },
+            data: { teacherId: null }
+        });
+        
+        // Assign teacher to destination class
+        await tx.class.update({
+            where: { id: toClassId },
+            data: { teacherId: teacherId }
+        });
+    });
+    
+    res.status(200).json(new ApiResponse(200, {
+        message: `Teacher ${teacher.name} transferred from ${fromClass.name} to ${toClass.name}`
+    }, "Teacher transferred successfully"));
+});
+
+// Get available classes for teacher assignment (Admin only)
+const getAvailableClasses = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { teacherId } = req.query;
+    
+    const classes = await prisma.class.findMany({
+        where: {
+            isActive: true
+        },
+        include: {
+            teacher: {
+                select: {
+                    id: true,
+                    name: true,
+                    email: true
+                }
+            },
+            _count: {
+                select: {
+                    students: true
+                }
+            }
+        },
+        orderBy: { name: 'asc' }
+    });
+    
+    // Categorize classes
+    const availableClasses = classes.filter(cls => !cls.teacherId);
+    const assignedClasses = teacherId ? classes.filter(cls => cls.teacherId === teacherId) : [];
+    const otherAssignedClasses = classes.filter(cls => cls.teacherId && cls.teacherId !== teacherId);
+    
+    res.status(200).json(new ApiResponse(200, {
+        availableClasses,
+        assignedClasses,
+        otherAssignedClasses,
+        totalClasses: classes.length
+    }, "Classes fetched successfully"));
 });
 
 export {
@@ -1032,5 +1137,7 @@ export {
     updateSettings,
     testEmailSettings,
     createBackup,
-    updateTeacherClasses
+    updateTeacherClasses,
+    transferTeacher,
+    getAvailableClasses
 };

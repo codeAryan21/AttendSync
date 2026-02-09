@@ -152,6 +152,24 @@ export default function ClassesPage() {
     setShowEditModal(true);
   };
 
+  // Function to update subject teachers when subjects change
+  const updateSubjectTeachers = (newSubjects: string[]) => {
+    const validSubjects = newSubjects.filter(s => s.trim());
+    const updatedSubjectTeachers = validSubjects.map(subject => {
+      const existing = editForm.subjectTeachers.find(st => st.subject === subject);
+      return {
+        subject,
+        teacherId: existing?.teacherId || ''
+      };
+    });
+    
+    setEditForm({
+      ...editForm,
+      subjects: newSubjects,
+      subjectTeachers: updatedSubjectTeachers
+    });
+  };
+
   const handleEditClass = async () => {
     if (!selectedClass) return;
     
@@ -262,6 +280,15 @@ export default function ClassesPage() {
                     </button>
                     {user?.role === 'ADMIN' && (
                       <>
+                        <button 
+                          onClick={() => openAssignModal(cls)}
+                          className="p-1.5 text-purple-600 hover:bg-purple-50 rounded"
+                          title="Assign Teacher"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                        </button>
                         <button 
                           onClick={() => openEditModal(cls)}
                           className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
@@ -585,14 +612,48 @@ export default function ClassesPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-semibold text-blue-700 mb-2">Description</label>
-                        <textarea
-                          value={editForm.description}
-                          onChange={(e) => setEditForm({...editForm, description: e.target.value})}
-                          className="w-full px-4 py-3 border border-blue-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white resize-none"
-                          rows={3}
-                          placeholder="Class description..."
-                        />
+                        <label className="block text-sm font-semibold text-blue-700 mb-2">Subjects</label>
+                        <div className="space-y-2">
+                          {editForm.subjects.map((subject, index) => (
+                            <div key={index} className="flex items-center space-x-2">
+                              <input
+                                type="text"
+                                value={subject}
+                                onChange={(e) => {
+                                  const newSubjects = [...editForm.subjects];
+                                  newSubjects[index] = e.target.value;
+                                  updateSubjectTeachers(newSubjects);
+                                }}
+                                className="flex-1 px-3 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                                placeholder="Enter subject name"
+                              />
+                              {editForm.subjects.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const newSubjects = editForm.subjects.filter((_, i) => i !== index);
+                                    updateSubjectTeachers(newSubjects);
+                                  }}
+                                  className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newSubjects = [...editForm.subjects, ''];
+                              updateSubjectTeachers(newSubjects);
+                            }}
+                            className="w-full px-3 py-2 border-2 border-dashed border-blue-300 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"
+                          >
+                            + Add Subject
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -709,7 +770,7 @@ export default function ClassesPage() {
           <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
             <div className="mt-3">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900">Assign Teacher</h3>
+                <h3 className="text-lg font-medium text-gray-900">Assign/Reassign Teacher</h3>
                 <button
                   onClick={() => setShowAssignModal(false)}
                   className="text-gray-400 hover:text-gray-600"
@@ -722,7 +783,15 @@ export default function ClassesPage() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Class</label>
-                  <p className="text-sm text-gray-900">{selectedClass.name} - {selectedClass.section} ({selectedClass.course})</p>
+                  <div className="p-3 bg-gray-50 rounded-md">
+                    <p className="text-sm font-semibold text-gray-900">{selectedClass.name} - {selectedClass.section}</p>
+                    <p className="text-xs text-gray-600">{selectedClass.course} • {selectedClass._count?.students || 0} students</p>
+                    {selectedClass.teacher && (
+                      <p className="text-xs text-blue-600 mt-1">
+                        Currently assigned to: {selectedClass.teacher.name}
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Select Teacher</label>
@@ -732,12 +801,21 @@ export default function ClassesPage() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">No teacher assigned</option>
-                    {teachers.map((teacher) => (
-                      <option key={teacher.id} value={teacher.id}>
-                        {teacher.name} ({teacher.email})
-                      </option>
-                    ))}
+                    {teachers.map((teacher) => {
+                      const isCurrentTeacher = teacher.id === selectedClass.teacher?.id;
+                      return (
+                        <option key={teacher.id} value={teacher.id}>
+                          {teacher.name} ({teacher.email})
+                          {isCurrentTeacher ? ' - Currently Assigned' : ''}
+                        </option>
+                      );
+                    })}
                   </select>
+                  {selectedTeacherId && selectedTeacherId !== selectedClass.teacher?.id && (
+                    <p className="text-xs text-green-600 mt-1">
+                      {selectedClass.teacher ? 'This will reassign the class to a new teacher' : 'This will assign a teacher to this class'}
+                    </p>
+                  )}
                 </div>
                 <div className="flex justify-end space-x-3 mt-6">
                   <button
@@ -750,7 +828,7 @@ export default function ClassesPage() {
                     onClick={handleAssignTeacher}
                     className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
                   >
-                    Assign Teacher
+                    {selectedClass.teacher ? 'Reassign Teacher' : 'Assign Teacher'}
                   </button>
                 </div>
               </div>
