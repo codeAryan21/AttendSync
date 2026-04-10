@@ -55,7 +55,7 @@ export default function DeleteModal({
     <div className="fixed inset-0 bg-gray-300 bg-opacity-75 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4">
       <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-fadeIn">
 
-        {/* ── Header — mirrors edit modal header exactly ── */}
+        {/* Header */}
         <div className="bg-gradient-to-r from-red-400 via-rose-600 to-pink-600 px-8 py-6">
           {/* decorative circles — same as edit modals */}
           <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 rounded-full -translate-y-1/2 translate-x-1/2" />
@@ -63,7 +63,7 @@ export default function DeleteModal({
 
           <div className="relative flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              {/* icon box — same w-14 h-14 bg-white/20 rounded-2xl as edit modal */}
+              {/* icon box */}
               <div className="w-14 h-14 bg-white bg-opacity-20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
                 <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -87,10 +87,10 @@ export default function DeleteModal({
           </div>
         </div>
 
-        {/* ── Body ── */}
+        {/* Body */}
         <div className="p-8 space-y-5">
 
-          {/* Item card — same gradient section card pattern as edit modals */}
+          {/* Item card */}
           <div className="bg-gradient-to-br from-red-50 to-rose-50 rounded-2xl p-5 border border-red-200">
             <div className="flex items-center mb-3">
               <div className="w-10 h-10 bg-red-500 rounded-xl flex items-center justify-center mr-3">
@@ -116,7 +116,7 @@ export default function DeleteModal({
             </div>
           </div>
 
-          {/* Warning card — same gradient section card pattern */}
+          {/* Warning card */}
           <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-2xl p-5 border border-orange-200">
             <div className="flex items-start space-x-3">
               <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -134,7 +134,7 @@ export default function DeleteModal({
             </div>
           </div>
 
-          {/* Confirm checkbox — styled as a full interactive row */}
+          {/* Confirm checkbox */}
           <button
             type="button"
             onClick={() => !isDeleting && setConfirmed(v => !v)}
@@ -160,7 +160,7 @@ export default function DeleteModal({
 
         </div>
 
-        {/* ── Footer — mirrors edit modal footer exactly ── */}
+        {/* Footer */}
         <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-8 py-6 flex justify-end space-x-4 border-t border-gray-200">
           <button
             ref={cancelRef}

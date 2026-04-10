@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "./form-fixes.css";
 import { Toaster } from 'react-hot-toast';
+import OfflineIndicator from '@/components/OfflineIndicator';
+import PWAInitializer from '@/components/PWAInitializer';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,15 +17,23 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AttendSync - Attendance Management System",
+  title: "AttendSync",
   description: "Modern attendance management system for coaching institutions",
   keywords: "attendance, management, education, students, teachers, tracking",
   authors: [{ name: "AttendSync Team" }],
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'AttendSync',
+  },
 };
 
 export const viewport = {
   width: 'device-width',
   initialScale: 1,
+  maximumScale: 1,
+  themeColor: '#4f46e5',
 };
 
 export default function RootLayout({
@@ -40,11 +50,16 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" 
           rel="stylesheet" 
         />
+        <link rel="apple-touch-icon" href="/icon-192.png" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <PWAInitializer />
         {children}
+        <OfflineIndicator />
         <Toaster 
           position="top-right"
           toastOptions={{

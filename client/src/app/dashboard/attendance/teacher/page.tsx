@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
 import toast from 'react-hot-toast';
+import { useOfflineAttendance } from '@/hooks/useOfflineAttendance';
 
 interface Student {
   id: string;
@@ -70,6 +71,7 @@ export default function TeacherAttendancePage() {
   const { user } = useAuthStore();
   const { settings, fetchSettings } = useSettingsStore();
   const router = useRouter();
+  const { markAttendance } = useOfflineAttendance();
   const [classes, setClasses] = useState<Class[]>([]);
   const [selectedClass, setSelectedClass] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -160,22 +162,19 @@ export default function TeacherAttendancePage() {
     }
 
     const currentStatus = attendance[studentId] || 'ABSENT';
-    const newStatus = currentStatus === 'PRESENT' ? 'ABSENT' : 'PRESENT';
+    const newStatus: 'PRESENT' | 'ABSENT' = currentStatus === 'PRESENT' ? 'ABSENT' : 'PRESENT';
     
     setAttendance(prev => ({ ...prev, [studentId]: newStatus }));
     
     try {
-      await api.post('/attendance/bulk-sync', {
-        records: [{
-          studentId,
-          classId: selectedClass,
-          date: selectedDate,
-          status: newStatus
-        }]
+      await markAttendance({
+        studentId,
+        classId: selectedClass,
+        date: selectedDate,
+        status: newStatus,
       });
     } catch (error) {
       setAttendance(prev => ({ ...prev, [studentId]: currentStatus }));
-      toast.error('Failed to update attendance');
     }
   };
 
@@ -184,26 +183,36 @@ export default function TeacherAttendancePage() {
       toast.error('Attendance can only be marked or modified within 48 hours of the class date');
       return;
     }
-
     const newAttendance: Record<string, 'PRESENT' | 'ABSENT'> = {};
-    const records = students.map(student => {
-      newAttendance[student.id] = 'PRESENT';
-      return {
-        studentId: student.id,
-        classId: selectedClass,
-        date: selectedDate,
-        status: 'PRESENT' as const
-      };
-    });
-    
+    students.forEach(student => { newAttendance[student.id] = 'PRESENT'; });
     setAttendance(newAttendance);
-    
     try {
-      await api.post('/attendance/bulk-sync', { records });
+      await Promise.all(students.map(student =>
+        markAttendance({ studentId: student.id, classId: selectedClass, date: selectedDate, status: 'PRESENT' })
+      ));
     } catch (error) {
       toast.error('Failed to mark all present');
     }
   };
+
+  const markAllAbsent = async () => {
+    if (!isWithin48Hours(selectedDate)) {
+      toast.error('Attendance can only be marked or modified within 48 hours of the class date');
+      return;
+    }
+    const newAttendance: Record<string, 'PRESENT' | 'ABSENT'> = {};
+    students.forEach(student => { newAttendance[student.id] = 'ABSENT'; });
+    setAttendance(newAttendance);
+    try {
+      await Promise.all(students.map(student =>
+        markAttendance({ studentId: student.id, classId: selectedClass, date: selectedDate, status: 'ABSENT' })
+      ));
+    } catch (error) {
+      toast.error('Failed to mark all absent');
+    }
+  };
+
+
 
   const fetchStudentProfile = async (studentId: string) => {
     setStudentLoading(true);
@@ -216,34 +225,6 @@ export default function TeacherAttendancePage() {
       setStudentLoading(false);
     }
   };
-
-  const markAllAbsent = async () => {
-    if (!isWithin48Hours(selectedDate)) {
-      toast.error('Attendance can only be marked or modified within 48 hours of the class date');
-      return;
-    }
-
-    const newAttendance: Record<string, 'PRESENT' | 'ABSENT'> = {};
-    const records = students.map(student => {
-      newAttendance[student.id] = 'ABSENT';
-      return {
-        studentId: student.id,
-        classId: selectedClass,
-        date: selectedDate,
-        status: 'ABSENT' as const
-      };
-    });
-    
-    setAttendance(newAttendance);
-    
-    try {
-      await api.post('/attendance/bulk-sync', { records });
-    } catch (error) {
-      toast.error('Failed to mark all absent');
-    }
-  };
-
-
 
   if (user?.role !== 'TEACHER') {
     return (

@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import Sidebar from '@/components/Sidebar';
 import toast from 'react-hot-toast';
+import { syncManager } from '@/lib/syncManager';
 
 export default function DashboardLayout({
   children,
@@ -24,6 +25,35 @@ export default function DashboardLayout({
   });
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [isOnline, setIsOnline] = useState(() =>
+    typeof window !== 'undefined' ? navigator.onLine : true
+  );
+  const [pendingCount, setPendingCount] = useState(0);
+  const [syncing, setSyncing] = useState(false);
+
+  useEffect(() => {
+    // Directly listen to browser online/offline events
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // Also subscribe to syncManager for pending/syncing state
+    const unsubscribe = syncManager.onStatusChange((status) => {
+      setIsOnline(status.online);
+      setPendingCount(status.pendingCount);
+      setSyncing(status.syncing);
+    });
+
+    // Force-read current state immediately
+    setIsOnline(navigator.onLine);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('sidebarCollapsed', sidebarCollapsed.toString());
@@ -150,7 +180,50 @@ export default function DashboardLayout({
             </button>
           </div>
         </div>
-        
+
+        {/* Global offline / sync banner — fixed below header, above scrollable content */}
+        {(!isOnline || pendingCount > 0 || syncing) && (
+          <div className={`flex-shrink-0 px-4 py-2 flex items-center justify-between text-sm font-semibold ${
+            !isOnline
+              ? 'bg-yellow-400 text-yellow-900'
+              : syncing
+              ? 'bg-blue-500 text-white'
+              : 'bg-orange-500 text-white'
+          }`}>
+            <div className="flex items-center gap-2">
+              {!isOnline && (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-yellow-900 opacity-60 animate-pulse inline-block" />
+                  <span>You are offline — attendance saves locally and syncs when you reconnect</span>
+                </>
+              )}
+              {isOnline && syncing && (
+                <>
+                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  <span>Syncing offline attendance to server...</span>
+                </>
+              )}
+              {isOnline && !syncing && pendingCount > 0 && (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-white animate-pulse inline-block" />
+                  <span>{pendingCount} attendance record{pendingCount > 1 ? 's' : ''} waiting to sync</span>
+                </>
+              )}
+            </div>
+            {isOnline && !syncing && pendingCount > 0 && (
+              <button
+                onClick={() => syncManager.syncNow()}
+                className="ml-4 px-3 py-1 bg-white text-orange-600 rounded font-semibold text-xs hover:bg-orange-50 transition-colors"
+              >
+                Sync now
+              </button>
+            )}
+          </div>
+        )}
+
         <main className="flex-1 relative overflow-y-auto focus:outline-none">
           <div className="py-6">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
