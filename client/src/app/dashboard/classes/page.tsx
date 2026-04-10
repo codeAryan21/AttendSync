@@ -127,11 +127,25 @@ export default function ClassesPage() {
     setShowAssignModal(true);
   };
 
-  const openEditModal = (cls: Class) => {
-    // Get existing subject teachers from metadata or create default assignments
-    const existingSubjectTeachers = cls.metadata?.subjectTeachers || [];
+  const openEditModal = async (cls: Class) => {
+    // Fetch teachers if not already loaded
+    if (teachers.length === 0 && user?.role === 'ADMIN') {
+      try {
+        const teacherResponse = await api.get('/admin/users?role=TEACHER');
+        const allUsers = teacherResponse.data.data.users || [];
+        const actualTeachers = allUsers.filter((user: any) => user.role === 'TEACHER');
+        setTeachers(actualTeachers);
+      } catch (error) {
+        toast.error('Failed to fetch teachers');
+      }
+    }
+    
+    // Get existing subject teachers from metadata - check both possible keys
+    const metadata = cls.metadata as any;
+    const existingSubjectTeachers = metadata?.subjectTeachers || metadata?.subjectTeacherAssignments || [];
+    
     const subjectTeachers = cls.subjects?.map(subject => {
-      const existing = existingSubjectTeachers.find(st => st.subject === subject);
+      const existing = existingSubjectTeachers.find((st: any) => st.subject === subject);
       return {
         subject,
         teacherId: existing?.teacherId || ''
@@ -180,6 +194,10 @@ export default function ClassesPage() {
     }
     
     try {
+      const validSubjectTeachers = editForm.subjectTeachers.filter(st => 
+        st.subject.trim() && st.teacherId.trim()
+      );
+      
       const updateData = {
         name: editForm.name.trim(),
         course: editForm.course.trim(),
@@ -189,9 +207,7 @@ export default function ClassesPage() {
         schedule: editForm.schedule?.trim() || '',
         description: editForm.description?.trim() || '',
         teacherId: selectedClass.teacher?.id,
-        subjectTeachers: editForm.subjectTeachers.filter(st => 
-          st.subject.trim() && st.teacherId.trim()
-        )
+        subjectTeachers: validSubjectTeachers
       };
       
       await api.put(`/class/${selectedClass.id}`, updateData);
@@ -328,6 +344,14 @@ export default function ClassesPage() {
                       {cls.subjects?.join(', ') || 'No subjects'}
                     </div>
                   </div>
+                  {cls.metadata?.subjectTeachers && cls.metadata.subjectTeachers.length > 0 && (
+                    <div className="text-xs">
+                      <span className="text-gray-600">Subject Teachers:</span>
+                      <div className="text-green-600 font-medium mt-1">
+                        {cls.metadata.subjectTeachers.length} assigned
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Actions */}
@@ -504,6 +528,41 @@ export default function ClassesPage() {
                       <p className="text-teal-600 text-sm mt-2">Active learners in this class</p>
                     </div>
                   </div>
+
+                  {/* Subject Teachers */}
+                  {selectedClass.metadata?.subjectTeachers && selectedClass.metadata.subjectTeachers.length > 0 && (
+                    <div className="bg-gradient-to-br from-amber-50 to-yellow-50 rounded-2xl p-6 border border-amber-200">
+                      <h4 className="text-lg font-bold text-amber-900 mb-4 flex items-center">
+                        <svg className="w-5 h-5 mr-2 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                        </svg>
+                        Subject Teachers
+                      </h4>
+                      <div className="space-y-2">
+                        {selectedClass.metadata.subjectTeachers.map((st: any, idx: number) => {
+                          const teacher = teachers.find(t => t.id === st.teacherId);
+                          return (
+                            <div key={idx} className="bg-white rounded-lg p-3 border border-amber-200 flex items-center justify-between">
+                              <div className="flex items-center space-x-3">
+                                <div className="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center">
+                                  <span className="text-white font-bold text-xs">
+                                    {st.subject.charAt(0)?.toUpperCase()}
+                                  </span>
+                                </div>
+                                <div>
+                                  <p className="font-semibold text-amber-900 text-sm">{st.subject}</p>
+                                  <p className="text-amber-700 text-xs">{teacher?.name || 'Unknown Teacher'}</p>
+                                </div>
+                              </div>
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                                Assigned
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -701,7 +760,7 @@ export default function ClassesPage() {
                               <div>
                                 <label className="block text-sm font-medium text-green-700 mb-1">Assign Teacher</label>
                                 <select
-                                  value={item.teacherId}
+                                  value={item.teacherId || ''}
                                   onChange={(e) => {
                                     const updated = [...editForm.subjectTeachers];
                                     updated[index] = { ...updated[index], teacherId: e.target.value };

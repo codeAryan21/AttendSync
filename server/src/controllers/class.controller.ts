@@ -180,6 +180,20 @@ const updateClass = asyncHandler(async (req: AuthRequest, res: Response) => {
         throw new ApiError(403, "Not authorized to update this class");
     }
     
+    // Validate subject teachers if provided
+    if (subjectTeachers && Array.isArray(subjectTeachers)) {
+        for (const assignment of subjectTeachers) {
+            if (assignment.subject?.trim() && assignment.teacherId?.trim()) {
+                const teacher = await prisma.user.findUnique({
+                    where: { id: assignment.teacherId, role: Role.TEACHER }
+                });
+                if (!teacher) {
+                    throw new ApiError(400, `Teacher not found for subject: ${assignment.subject}`);
+                }
+            }
+        }
+    }
+    
     const updateData: any = {};
     
     if (name !== undefined) updateData.name = name;
@@ -192,9 +206,25 @@ const updateClass = asyncHandler(async (req: AuthRequest, res: Response) => {
     if (newTeacherId !== undefined) updateData.teacherId = newTeacherId;
     
     // Update subject teachers in metadata
-    if (subjectTeachers && Array.isArray(subjectTeachers)) {
-        const validAssignments = subjectTeachers.filter(st => st.subject?.trim() && st.teacherId?.trim());
-        updateData.metadata = validAssignments.length > 0 ? { subjectTeachers: validAssignments } : null;
+    if (subjectTeachers !== undefined) {
+
+        if (Array.isArray(subjectTeachers) && subjectTeachers.length > 0) {
+            const validAssignments = subjectTeachers.filter(st => st.subject?.trim() && st.teacherId?.trim());
+
+            const existingMetadata = (existingClass.metadata as any) || {};
+            updateData.metadata = {
+                ...existingMetadata,
+                subjectTeachers: validAssignments
+            };
+
+        } else {
+            // If empty array, preserve other metadata but clear subject teachers
+            const existingMetadata = (existingClass.metadata as any) || {};
+            updateData.metadata = {
+                ...existingMetadata,
+                subjectTeachers: []
+            };
+        }
     }
     
     const updatedClass = await prisma.class.update({
@@ -207,6 +237,9 @@ const updateClass = asyncHandler(async (req: AuthRequest, res: Response) => {
                     name: true,
                     email: true
                 }
+            },
+            _count: {
+                select: { students: true }
             }
         }
     });

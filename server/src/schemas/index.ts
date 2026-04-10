@@ -72,7 +72,15 @@ export const createClassSchema = z.object({
   name: z.string().trim().min(1, 'Class name is required').max(100),
   course: z.string().trim().min(1, 'Course is required').max(100),
   section: z.string().trim().min(1, 'Section is required').max(10),
-  subjects: z.array(z.string().trim().min(1)).min(1, 'At least one subject is required')
+  subjects: z.array(z.string().trim().min(1)).min(1, 'At least one subject is required'),
+  academicYear: z.string().trim().min(1, 'Academic year is required').max(20),
+  schedule: z.string().trim().max(200).optional(),
+  description: z.string().trim().max(500).optional(),
+  teacherId: z.string().optional(),
+  subjectTeachers: z.array(z.object({
+    subject: z.string().trim().min(1),
+    teacherId: z.string().trim().min(1),
+  })).optional(),
 });
 
 export const updateClassSchema = createClassSchema.partial();
