@@ -1,36 +1,181 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AttendSync — Client
 
-## Getting Started
+Next.js 16 frontend with PWA support and offline-first attendance marking.
 
-First, run the development server:
+## Table of Contents
+
+- [Tech Stack](#tech-stack)
+- [Setup](#setup)
+- [Scripts](#scripts)
+- [Project Structure](#project-structure)
+- [Offline-First & PWA](#offline-first--pwa)
+- [State Management](#state-management)
+- [Role-Based Pages](#role-based-pages)
+- [Environment Variables](#environment-variables)
+
+---
+
+## Tech Stack
+
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| Next.js | 16.x (App Router) | React framework, routing, SSR |
+| React | 19.x | UI library |
+| TypeScript | 5.x | Type safety |
+| Tailwind CSS | 4.x | Utility-first CSS |
+| Zustand | 4.x | Global state management |
+| React Hook Form | 7.x | Form management |
+| Zod | 3.x | Form validation |
+| Axios | 1.x | HTTP client |
+| react-hot-toast | 2.x | Toast notifications |
+| js-cookie | 3.x | Cookie management |
+| Service Worker (custom) | — | Offline caching + background sync |
+| IndexedDB (native) | — | Offline attendance queue |
+
+---
+
+## Setup
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install --legacy-peer-deps
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Create `.env.local`:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```env
+NEXT_PUBLIC_API_URL=http://localhost:5001/api/v1
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run dev   # http://localhost:3000
+```
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## Scripts
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Development server (Turbopack) |
+| `npm run build` | Production build |
+| `npm start` | Production server |
+| `npm run lint` | ESLint |
+| `npm run setup-pwa` | Generate PWA icons |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## Project Structure
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+src/
+├── app/
+│   ├── dashboard/
+│   │   ├── attendance/
+│   │   │   ├── teacher/page.tsx     # Teacher attendance marking
+│   │   │   └── student/page.tsx     # Student attendance view
+│   │   ├── classes/                 # Class management
+│   │   ├── students/                # Student management
+│   │   └── admin/                   # Admin panel
+│   ├── forgot-password/
+│   ├── reset-password/
+│   ├── layout.tsx                   # Root layout with providers
+│   └── page.tsx                     # Login / landing
+├── components/
+│   ├── auth/                        # Auth-related components
+│   ├── AttendanceFormExample.tsx
+│   ├── DeleteModal.tsx
+│   ├── LoadingSpinner.tsx
+│   ├── OfflineIndicator.tsx         # Sync status + pending count
+│   ├── PageHeader.tsx
+│   ├── PWAInitializer.tsx           # Service Worker registration
+│   ├── RoleDashboard.tsx            # Role-aware dashboard router
+│   ├── Sidebar.tsx
+│   └── TeacherClassAssignment.tsx
+├── hooks/
+│   ├── useOfflineAttendance.ts      # Offline-first attendance logic
+│   └── useRoleAccess.ts             # Role-based access control
+├── lib/
+│   ├── api.ts                       # Axios instance with interceptors
+│   ├── offlineDB.ts                 # IndexedDB wrapper (AttendSyncDB)
+│   ├── syncManager.ts               # Connectivity detection + background sync
+│   ├── pwa.ts                       # PWA utilities
+│   └── permissions.ts               # Role permission map
+└── store/
+    ├── authStore.ts                 # Auth state (Zustand)
+    └── settingsStore.ts             # App settings (Zustand)
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## Offline-First & PWA
+
+AttendSync works offline for attendance marking in low-connectivity environments.
+
+### How It Works
+
+| Layer | File | Role |
+|-------|------|------|
+| App Shell Caching | `public/sw.js` | Caches static assets on install; cache-first strategy |
+| Offline Queue | `lib/offlineDB.ts` | Stores pending attendance in `AttendSyncDB` (IndexedDB) |
+| Sync Manager | `lib/syncManager.ts` | Polls `/health` every 2s; triggers bulk sync on reconnect |
+| Background Sync | `public/sw.js` (`sync` event) | Service Worker syncs queued records via Background Sync API |
+| Status UI | `components/OfflineIndicator.tsx` | Shows online/offline state and pending record count |
+
+### Offline Attendance Flow
+
+1. `useOfflineAttendance` hook calls `syncManager.markAttendanceOffline()`
+2. Record saved to IndexedDB with `synced: 0`
+3. If online → `syncManager.syncNow()` fires immediately
+4. If offline → Service Worker registers `sync-attendance` background sync
+5. On reconnect → all pending records bulk-synced to `POST /attendance/bulk-sync`
+6. Synced records deleted from IndexedDB; `OfflineIndicator` updates
+
+### PWA Installation
+
+- Mobile: Browser menu → "Add to Home Screen"
+- Desktop (Chrome/Edge): Click ⊕ in address bar → "Install"
+
+```bash
+npm run setup-pwa   # generate PWA icons (192x192, 512x512)
+```
+
+---
+
+## State Management
+
+### `authStore` (Zustand)
+- Stores `user`, `accessToken`
+- Handles login, logout, token refresh
+- Persisted across page reloads via `localStorage`
+
+### `settingsStore` (Zustand)
+- Stores system settings fetched from `GET /auth/settings`
+- Used for attendance threshold display and notification config
+
+---
+
+## Role-Based Pages
+
+| Role | Dashboard Access |
+|------|-----------------|
+| Admin | User management, system stats, all classes, settings, reports |
+| Teacher | Assigned classes, attendance marking, student profiles |
+| Student | Personal attendance, own profile |
+
+Access is enforced by the `useRoleAccess` hook and `permissions.ts` map. Unauthorized routes redirect to the appropriate dashboard.
+
+---
+
+## Environment Variables
+
+## License
+
+MIT License
+
+---
+
+## Author
+
+Aryan Singh
+
+Built using Next.js, React, TypeScript, and Tailwind CSS.
