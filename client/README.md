@@ -1,178 +1,161 @@
-# AttendSync — Client
+# AttendSync - Client
 
-Next.js 16 frontend with PWA support and offline-first attendance marking.
+This folder contains the frontend code for AttendSync, an offline-first attendance platform built with Next.js 16, React 19, TypeScript, and Tailwind CSS.
 
-## Table of Contents
+## Features
 
-- [Tech Stack](#tech-stack)
-- [Setup](#setup)
-- [Scripts](#scripts)
-- [Project Structure](#project-structure)
-- [Offline-First & PWA](#offline-first--pwa)
-- [State Management](#state-management)
-- [Role-Based Pages](#role-based-pages)
-- [Environment Variables](#environment-variables)
+### For Admins
+- Manage users (create, update, assign, and deactivate)
+- Manage classes and teacher assignments
+- View attendance reports and analytics dashboards
+- Configure system settings such as threshold and notification behavior
 
----
+### For Teachers
+- Mark attendance by class and date
+- Toggle individual student attendance status instantly
+- Bulk mark students as present or absent
+- Work offline with automatic sync when internet is restored
+
+### For Students
+- View personal attendance history and percentage
+- Download attendance reports
+- Update own profile details
+
+### General Frontend Features
+- Role-based dashboard experience (Admin, Teacher, Student)
+- JWT-based authentication flow with access and refresh token support
+- OTP-based password reset flow
+- Offline attendance queue using IndexedDB
+- Service Worker background sync for pending records
+- Real-time sync status indicator for online/offline visibility
+- Responsive UI for desktop and mobile screens
 
 ## Tech Stack
 
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| Next.js | 16.x (App Router) | React framework, routing, SSR |
-| React | 19.x | UI library |
-| TypeScript | 5.x | Type safety |
-| Tailwind CSS | 4.x | Utility-first CSS |
-| Zustand | 4.x | Global state management |
-| React Hook Form | 7.x | Form management |
-| Zod | 3.x | Form validation |
-| Axios | 1.x | HTTP client |
-| react-hot-toast | 2.x | Toast notifications |
-| js-cookie | 3.x | Cookie management |
-| Service Worker (custom) | — | Offline caching + background sync |
-| IndexedDB (native) | — | Offline attendance queue |
+- Next.js 16 (App Router)
+- React 19
+- TypeScript 5
+- Tailwind CSS 4
+- Zustand
+- React Hook Form
+- Zod
+- Axios
+- react-hot-toast
+- IndexedDB (native browser API)
+- Service Worker (custom)
 
----
+## Getting Started
 
-## Setup
+### Prerequisites
+
+- Node.js 18+
+- npm
+
+### Installation
+
+1. Navigate to the client directory:
+
+```bash
+cd client
+```
+
+2. Install dependencies:
 
 ```bash
 npm install --legacy-peer-deps
 ```
 
-Create `.env.local`:
+3. Create `.env.local` in the client root and set backend API URL:
 
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:5001/api/v1
 ```
 
+4. Start the development server:
+
 ```bash
-npm run dev   # http://localhost:3000
+npm run dev
 ```
 
----
+Application URL (development): `http://localhost:3000`
 
-## Scripts
+### Build and Preview
 
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Development server (Turbopack) |
-| `npm run build` | Production build |
-| `npm start` | Production server |
-| `npm run lint` | ESLint |
-| `npm run setup-pwa` | Generate PWA icons |
-
----
+```bash
+npm run build
+npm start
+```
 
 ## Project Structure
 
-```
-src/
-├── app/
-│   ├── dashboard/
-│   │   ├── attendance/
-│   │   │   ├── teacher/page.tsx     # Teacher attendance marking
-│   │   │   └── student/page.tsx     # Student attendance view
-│   │   ├── classes/                 # Class management
-│   │   ├── students/                # Student management
-│   │   └── admin/                   # Admin panel
-│   ├── forgot-password/
-│   ├── reset-password/
-│   ├── layout.tsx                   # Root layout with providers
-│   └── page.tsx                     # Login / landing
-├── components/
-│   ├── auth/                        # Auth-related components
-│   ├── AttendanceFormExample.tsx
-│   ├── DeleteModal.tsx
-│   ├── LoadingSpinner.tsx
-│   ├── OfflineIndicator.tsx         # Sync status + pending count
-│   ├── PageHeader.tsx
-│   ├── PWAInitializer.tsx           # Service Worker registration
-│   ├── RoleDashboard.tsx            # Role-aware dashboard router
-│   ├── Sidebar.tsx
-│   └── TeacherClassAssignment.tsx
-├── hooks/
-│   ├── useOfflineAttendance.ts      # Offline-first attendance logic
-│   └── useRoleAccess.ts             # Role-based access control
-├── lib/
-│   ├── api.ts                       # Axios instance with interceptors
-│   ├── offlineDB.ts                 # IndexedDB wrapper (AttendSyncDB)
-│   ├── syncManager.ts               # Connectivity detection + background sync
-│   ├── pwa.ts                       # PWA utilities
-│   └── permissions.ts               # Role permission map
-└── store/
-    ├── authStore.ts                 # Auth state (Zustand)
-    └── settingsStore.ts             # App settings (Zustand)
-```
-
----
-
-## Offline-First & PWA
-
-AttendSync works offline for attendance marking in low-connectivity environments.
-
-### How It Works
-
-| Layer | File | Role |
-|-------|------|------|
-| App Shell Caching | `public/sw.js` | Caches static assets on install; cache-first strategy |
-| Offline Queue | `lib/offlineDB.ts` | Stores pending attendance in `AttendSyncDB` (IndexedDB) |
-| Sync Manager | `lib/syncManager.ts` | Polls `/health` every 2s; triggers bulk sync on reconnect |
-| Background Sync | `public/sw.js` (`sync` event) | Service Worker syncs queued records via Background Sync API |
-| Status UI | `components/OfflineIndicator.tsx` | Shows online/offline state and pending record count |
-
-### Offline Attendance Flow
-
-1. `useOfflineAttendance` hook calls `syncManager.markAttendanceOffline()`
-2. Record saved to IndexedDB with `synced: 0`
-3. If online → `syncManager.syncNow()` fires immediately
-4. If offline → Service Worker registers `sync-attendance` background sync
-5. On reconnect → all pending records bulk-synced to `POST /attendance/bulk-sync`
-6. Synced records deleted from IndexedDB; `OfflineIndicator` updates
-
-### PWA Installation
-
-- Mobile: Browser menu → "Add to Home Screen"
-- Desktop (Chrome/Edge): Click ⊕ in address bar → "Install"
-
-```bash
-npm run setup-pwa   # generate PWA icons (192x192, 512x512)
+```text
+client/
+├── public/
+│   ├── manifest.json
+│   └── sw.js
+├── scripts/
+│   └── generate-icons.js
+├── src/
+│   ├── app/
+│   │   ├── dashboard/
+│   │   │   ├── attendance/
+│   │   │   ├── classes/
+│   │   │   └── ...
+│   │   ├── forgot-password/
+│   │   ├── reset-password/
+│   │   ├── layout.tsx
+│   │   └── page.tsx
+│   ├── components/
+│   │   ├── auth/
+│   │   ├── OfflineIndicator.tsx
+│   │   ├── PWAInitializer.tsx
+│   │   └── ...
+│   ├── hooks/
+│   │   ├── useOfflineAttendance.ts
+│   │   └── useRoleAccess.ts
+│   ├── lib/
+│   │   ├── api.ts
+│   │   ├── offlineDB.ts
+│   │   ├── pwa.ts
+│   │   ├── permissions.ts
+│   │   └── syncManager.ts
+│   └── store/
+│       ├── authStore.ts
+│       └── settingsStore.ts
+├── package.json
+└── README.md
 ```
 
----
+## Key Modules
 
-## State Management
+- `useOfflineAttendance`: Handles offline queue writes and sync triggers
+- `syncManager`: Monitors connectivity and pushes pending attendance records
+- `offlineDB`: IndexedDB wrapper for local persistence
+- `OfflineIndicator`: Displays connection and sync state to users
+- `authStore`: Global authentication state and role context
 
-### `authStore` (Zustand)
-- Stores `user`, `accessToken`
-- Handles login, logout, token refresh
-- Persisted across page reloads via `localStorage`
+## Available Scripts
 
-### `settingsStore` (Zustand)
-- Stores system settings fetched from `GET /auth/settings`
-- Used for attendance threshold display and notification config
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm start` - Start production server
+- `npm run lint` - Run ESLint checks
+- `npm run setup-pwa` - Generate PWA icon set
 
----
+## Offline and PWA Notes
 
-## Role-Based Pages
+- Attendance can be marked without internet access
+- Pending records are stored locally in IndexedDB (`AttendSyncDB`)
+- Service Worker registers background sync jobs
+- Pending records are bulk synced to the backend on reconnect
 
-| Role | Dashboard Access |
-|------|-----------------|
-| Admin | User management, system stats, all classes, settings, reports |
-| Teacher | Assigned classes, attendance marking, student profiles |
-| Student | Personal attendance, own profile |
+## Deployment
 
-Access is enforced by the `useRoleAccess` hook and `permissions.ts` map. Unauthorized routes redirect to the appropriate dashboard.
-
----
-
-## Environment Variables
+The client is a Next.js application and can be deployed on Vercel or any Node.js-compatible hosting platform.
 
 ## License
 
 MIT License
-
----
 
 ## Author
 

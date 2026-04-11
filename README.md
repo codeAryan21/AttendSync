@@ -372,7 +372,7 @@ Scope: Own data only
 
 - View personal attendance records and percentage
 - Download attendance report
-- Update own profile
+- Update their own password
 
 ---
 
